@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { AnalyticsSummary, PaymentAttempt, UsageEvent } from "@query402/shared";
+import type { AnalyticsSummary, PaymentAttempt, UsageEvent, PaymentEvidence } from "@query402/shared";
 
 interface PersistedDb {
   usage: UsageEvent[];
@@ -43,6 +43,24 @@ export function savePaymentAttempt(payment: PaymentAttempt) {
   db.payments.unshift(payment);
   db.payments = db.payments.slice(0, 500);
   writeDb(db);
+}
+
+export function updatePaymentAttemptEvidence(id: string, evidence: PaymentEvidence) {
+  const db = readDb();
+  const index = db.payments.findIndex(p => p.id === id);
+  if (index !== -1) {
+    db.payments[index].evidence = evidence;
+    writeDb(db);
+  }
+}
+
+export function updateUsageEventEvidence(traceId: string, evidence: PaymentEvidence) {
+  const db = readDb();
+  const index = db.usage.findIndex(u => u.traceId === traceId);
+  if (index !== -1) {
+    db.usage[index].evidence = evidence;
+    writeDb(db);
+  }
 }
 
 export function getUsageEvents() {

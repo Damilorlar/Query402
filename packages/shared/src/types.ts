@@ -33,6 +33,46 @@ export interface QueryResult {
   raw?: Record<string, unknown>;
 }
 
+export type PaymentEvidenceStatus = "demo-paid" | "verified" | "settled" | "failed";
+
+export interface BasePaymentEvidence {
+  status: PaymentEvidenceStatus;
+  network: string;
+  amountUsd: number;
+  payToAddress: string;
+  facilitatorUrl: string;
+  payerPublicKey?: string;
+  error?: string;
+}
+
+export interface DemoPaymentEvidence extends BasePaymentEvidence {
+  status: "demo-paid";
+  demoId: string;
+}
+
+export interface VerifiedPaymentEvidence extends BasePaymentEvidence {
+  status: "verified";
+  paymentPayload: string;
+}
+
+export interface SettledPaymentEvidence extends BasePaymentEvidence {
+  status: "settled";
+  transactionHash: string;
+  paymentPayload: string;
+}
+
+export interface FailedPaymentEvidence extends BasePaymentEvidence {
+  status: "failed";
+  error: string;
+  paymentPayload?: string;
+}
+
+export type PaymentEvidence =
+  | DemoPaymentEvidence
+  | VerifiedPaymentEvidence
+  | SettledPaymentEvidence
+  | FailedPaymentEvidence;
+
 export interface UsageEvent {
   id: string;
   mode: QueryMode;
@@ -40,11 +80,7 @@ export interface UsageEvent {
   providerId: string;
   queryOrUrl: string;
   priceUsd: number;
-  network: string;
-  paymentStatus: "paid" | "failed" | "demo-paid";
-  paymentTxHash?: string;
-  facilitatorUrl?: string;
-  payerPublicKey?: string;
+  evidence: PaymentEvidence;
   traceId: string;
   createdAt: string;
   latencyMs: number;
@@ -54,14 +90,7 @@ export interface PaymentAttempt {
   id: string;
   endpoint: string;
   providerId: string;
-  amountUsd: number;
-  network: string;
-  payerPublicKey?: string;
-  payToAddress: string;
-  facilitatorUrl: string;
-  status: "verified" | "settled" | "failed";
-  transactionHash?: string;
-  error?: string;
+  evidence: PaymentEvidence;
   createdAt: string;
 }
 

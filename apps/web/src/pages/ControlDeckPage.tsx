@@ -302,7 +302,8 @@ export default function ControlDeckPage() {
                 </div>
 
                 <div className="trace-box">
-                  <p>payment-response: {result.payment.paymentResponseHeader ?? "<none>"}</p>
+                  <p>evidence: {result.payment.paymentResponseHeader?.startsWith('demo_tx_') ? 'demo-paid' : 'verified'}</p>
+                  <p>payload: {result.payment.paymentResponseHeader ?? "<none>"}</p>
                   <p>network: {result.payment.network}</p>
                 </div>
 
@@ -357,7 +358,9 @@ export default function ControlDeckPage() {
                   <span>{tx.providerId}</span>
                   <strong>{money(tx.amountUsd)}</strong>
                 </p>
-                <small>{new Date(tx.createdAt).toLocaleString()}</small>
+                <small>
+                  {tx.evidence.status.toUpperCase()} · {new Date(tx.createdAt).toLocaleString()}
+                </small>
               </div>
             ))}
           </div>
@@ -373,7 +376,7 @@ export default function ControlDeckPage() {
                   <strong>{usage.latencyMs}ms</strong>
                 </p>
                 <small>
-                  {money(usage.priceUsd)} · {new Date(usage.createdAt).toLocaleString()}
+                  {money(usage.priceUsd)} · {usage.evidence.status.toUpperCase()} · {new Date(usage.createdAt).toLocaleString()}
                 </small>
               </div>
             ))}

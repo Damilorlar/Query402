@@ -1,4 +1,4 @@
-import type { ProviderDefinition, QueryMode } from "@query402/shared";
+import type { ProviderDefinition, QueryMode, PaymentEvidence } from "@query402/shared";
 
 export interface PaidQueryResponse {
   payment: {
@@ -33,7 +33,7 @@ export interface AnalyticsResponse {
     amountUsd: number;
     endpoint: string;
     providerId: string;
-    status: string;
+    evidence: PaymentEvidence;
     createdAt: string;
   }>;
   recentUsage: Array<{
@@ -43,7 +43,7 @@ export interface AnalyticsResponse {
     priceUsd: number;
     createdAt: string;
     latencyMs: number;
-    paymentStatus: string;
+    evidence: PaymentEvidence;
     traceId: string;
   }>;
 }

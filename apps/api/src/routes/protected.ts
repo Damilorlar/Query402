@@ -4,6 +4,7 @@ import { searchQuerySchema, newsQuerySchema, scrapeQuerySchema } from "@query402
 import { executeQuery } from "../services/query-service.js";
 import { config } from "../lib/config.js";
 import { savePaymentAttempt, saveUsageEvent } from "../lib/persistence.js";
+import type { PaymentEvidence } from "@query402/shared";
 
 export const protectedRouter = Router();
 
@@ -17,21 +18,36 @@ function persistPaidRequest(input: {
   traceId: string;
   paymentResponseHeader: string | null;
   payerPublicKey?: string;
+  isDemo?: boolean;
 }) {
   const now = new Date().toISOString();
   const paymentId = `pay_${nanoid(10)}`;
+
+  const evidence: PaymentEvidence = input.isDemo
+    ? {
+        status: "demo-paid",
+        network: config.STELLAR_NETWORK,
+        amountUsd: input.priceUsd,
+        payToAddress: config.X402_PAY_TO_ADDRESS,
+        facilitatorUrl: config.X402_FACILITATOR_URL,
+        payerPublicKey: input.payerPublicKey,
+        demoId: input.paymentResponseHeader ?? "",
+      }
+    : {
+        status: "verified",
+        network: config.STELLAR_NETWORK,
+        amountUsd: input.priceUsd,
+        payToAddress: config.X402_PAY_TO_ADDRESS,
+        facilitatorUrl: config.X402_FACILITATOR_URL,
+        payerPublicKey: input.payerPublicKey,
+        paymentPayload: input.paymentResponseHeader ?? "",
+      };
 
   savePaymentAttempt({
     id: paymentId,
     endpoint: input.endpoint,
     providerId: input.provider,
-    amountUsd: input.priceUsd,
-    network: config.STELLAR_NETWORK,
-    payerPublicKey: input.payerPublicKey,
-    payToAddress: config.X402_PAY_TO_ADDRESS,
-    facilitatorUrl: config.X402_FACILITATOR_URL,
-    status: "settled",
-    transactionHash: input.paymentResponseHeader ?? undefined,
+    evidence,
     createdAt: now
   });
 
@@ -42,15 +58,13 @@ function persistPaidRequest(input: {
     providerId: input.provider,
     queryOrUrl: input.queryOrUrl,
     priceUsd: input.priceUsd,
-    network: config.STELLAR_NETWORK,
-    paymentStatus: "paid",
-    paymentTxHash: input.paymentResponseHeader ?? undefined,
-    facilitatorUrl: config.X402_FACILITATOR_URL,
-    payerPublicKey: input.payerPublicKey,
+    evidence,
     traceId: input.traceId,
     createdAt: now,
     latencyMs: input.latencyMs
   });
+
+  return paymentId;
 }
 
 protectedRouter.get("/x402/search", async (req, res, next) => {
@@ -67,7 +81,8 @@ protectedRouter.get("/x402/search", async (req, res, next) => {
     });
 
     const paymentHeader = req.header("payment-response") ?? null;
-    persistPaidRequest({
+    const isDemo = req.header("x-query402-demo-paid") === "true";
+    const paymentId = persistPaidRequest({
       mode: "search",
       endpoint: "/x402/search",
       provider: parsed.data.provider,
@@ -76,8 +91,12 @@ protectedRouter.get("/x402/search", async (req, res, next) => {
       latencyMs: result.latencyMs,
       traceId: result.traceId,
       paymentResponseHeader: paymentHeader,
-      payerPublicKey: req.header("x-demo-payer") ?? undefined
+      payerPublicKey: req.header("x-demo-payer") ?? undefined,
+      isDemo
     });
+
+    res.setHeader("x-payment-attempt-id", paymentId);
+    res.setHeader("x-payment-trace-id", result.traceId);
 
     return res.json({
       payment: {
@@ -106,7 +125,8 @@ protectedRouter.get("/x402/news", async (req, res, next) => {
     });
 
     const paymentHeader = req.header("payment-response") ?? null;
-    persistPaidRequest({
+    const isDemo = req.header("x-query402-demo-paid") === "true";
+    const paymentId = persistPaidRequest({
       mode: "news",
       endpoint: "/x402/news",
       provider: parsed.data.provider,
@@ -115,8 +135,12 @@ protectedRouter.get("/x402/news", async (req, res, next) => {
       latencyMs: result.latencyMs,
       traceId: result.traceId,
       paymentResponseHeader: paymentHeader,
-      payerPublicKey: req.header("x-demo-payer") ?? undefined
+      payerPublicKey: req.header("x-demo-payer") ?? undefined,
+      isDemo
     });
+
+    res.setHeader("x-payment-attempt-id", paymentId);
+    res.setHeader("x-payment-trace-id", result.traceId);
 
     return res.json({
       payment: {
@@ -145,7 +169,8 @@ protectedRouter.get("/x402/scrape", async (req, res, next) => {
     });
 
     const paymentHeader = req.header("payment-response") ?? null;
-    persistPaidRequest({
+    const isDemo = req.header("x-query402-demo-paid") === "true";
+    const paymentId = persistPaidRequest({
       mode: "scrape",
       endpoint: "/x402/scrape",
       provider: parsed.data.provider,
@@ -154,8 +179,12 @@ protectedRouter.get("/x402/scrape", async (req, res, next) => {
       latencyMs: result.latencyMs,
       traceId: result.traceId,
       paymentResponseHeader: paymentHeader,
-      payerPublicKey: req.header("x-demo-payer") ?? undefined
+      payerPublicKey: req.header("x-demo-payer") ?? undefined,
+      isDemo
     });
+
+    res.setHeader("x-payment-attempt-id", paymentId);
+    res.setHeader("x-payment-trace-id", result.traceId);
 
     return res.json({
       payment: {

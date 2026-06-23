@@ -5,6 +5,7 @@ import type { NextFunction, Request, Response } from "express";
 import type { HTTPRequestContext } from "@x402/core/server";
 import { getProviderById, protectedRouteBasePrices } from "./pricing.js";
 import { config } from "./config.js";
+import { updatePaymentAttemptEvidence, updateUsageEventEvidence } from "./persistence.js";
 
 type RouteMode = "search" | "news" | "scrape";
 
@@ -102,6 +103,38 @@ export function createX402Middleware() {
     network,
     new ExactStellarScheme()
   );
+
+  resourceServer.onAfterSettle(async (ctx) => {
+    const transport = ctx.transportContext as { responseHeaders?: Record<string, string> };
+    const paymentId = transport?.responseHeaders?.["x-payment-attempt-id"];
+    const traceId = transport?.responseHeaders?.["x-payment-trace-id"];
+    
+    if (paymentId && traceId) {
+      updatePaymentAttemptEvidence(paymentId, {
+        status: "settled",
+        network,
+        amountUsd: Number(ctx.requirements.amount),
+        payToAddress: ctx.requirements.payTo,
+        facilitatorUrl: config.X402_FACILITATOR_URL,
+        transactionHash: ctx.result.transaction,
+        paymentPayload: typeof ctx.paymentPayload === "string" ? ctx.paymentPayload : JSON.stringify(ctx.paymentPayload)
+      });
+      updateUsageEventEvidence(traceId, {
+        status: "settled",
+        network,
+        amountUsd: Number(ctx.requirements.amount),
+        payToAddress: ctx.requirements.payTo,
+        facilitatorUrl: config.X402_FACILITATOR_URL,
+        transactionHash: ctx.result.transaction,
+        paymentPayload: typeof ctx.paymentPayload === "string" ? ctx.paymentPayload : JSON.stringify(ctx.paymentPayload)
+      });
+    }
+  });
+
+  resourceServer.onSettleFailure(async (ctx) => {
+    // Cannot correlate failure to database entry because transportContext is missing from SettleFailureContext
+    // The entry will remain as "verified"
+  });
 
   const routeConfig = {
     "GET /x402/search": {
