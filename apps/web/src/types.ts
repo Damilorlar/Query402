@@ -6,22 +6,7 @@ export interface PaidQueryResponse {
     facilitatorUrl: string;
     paymentResponseHeader: string | null;
   };
-  result: {
-    mode: QueryMode;
-    providerId: string;
-    providerName: string;
-    priceUsd: number;
-    latencyMs: number;
-    timestamp: string;
-    traceId: string;
-    items: Array<{
-      title: string;
-      url: string;
-      snippet: string;
-      score: number;
-    }>;
-    raw?: Record<string, unknown>;
-  };
+  result: QueryResult;
 }
 
 export interface AnalyticsResponse {
