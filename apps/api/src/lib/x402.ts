@@ -129,7 +129,7 @@ export function createX402Middleware() {
     new ExactStellarScheme()
   );
 
-  resourceServer.onAfterVerify(async (ctx) => {
+  resourceServer.onAfterVerify(async (ctx: any) => {
     const transport = ctx.transportContext as { request?: Request, req?: Request } | Request;
     const req = ('headers' in transport) ? transport : (transport.request || transport.req);
     

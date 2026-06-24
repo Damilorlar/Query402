@@ -1,4 +1,4 @@
-import type { ProviderDefinition, QueryMode, PaymentEvidence } from "@query402/shared";
+import type { ProviderDefinition, QueryMode, PaymentEvidence, QueryResult } from "@query402/shared";
 
 export interface PaidQueryResponse {
   payment: {
