@@ -5,7 +5,8 @@ import type { NextFunction, Request, Response } from "express";
 import type { HTTPRequestContext } from "@x402/core/server";
 import { getProviderById, protectedRouteBasePrices } from "./pricing.js";
 import { config } from "./config.js";
-import { updatePaymentAttemptEvidence, updateUsageEventEvidence } from "./persistence.js";
+import { savePaymentAttempt, updatePaymentAttemptEvidence } from "./persistence.js";
+import { nanoid } from "nanoid";
 
 type RouteMode = "search" | "news" | "scrape";
 
@@ -54,6 +55,30 @@ function demoMode402Middleware(req: Request, res: Response, next: NextFunction) 
   const paymentResponse = req.header("payment-response");
 
   if (paidHeader === "true" || typeof paymentResponse === "string") {
+    const paymentId = `pay_${nanoid(10)}`;
+    req.headers["x-payment-attempt-id"] = paymentId;
+
+    const routeKey = `${req.method.toUpperCase()} ${req.path}`;
+    const price = protectedRouteBasePrices[routeKey] ?? "$0.01";
+
+    const rawProvider = req.query.provider;
+    const providerId = typeof rawProvider === "string" ? rawProvider : (Array.isArray(rawProvider) ? rawProvider[0] : "unknown");
+
+    savePaymentAttempt({
+      id: paymentId,
+      endpoint: req.path,
+      providerId: providerId as string,
+      evidence: {
+        status: "demo-paid",
+        network: config.STELLAR_NETWORK,
+        amountUsd: Number(price.replace("$", "")),
+        payToAddress: config.X402_PAY_TO_ADDRESS,
+        facilitatorUrl: config.X402_FACILITATOR_URL,
+        demoId: paymentResponse ?? "demo-success"
+      },
+      createdAt: new Date().toISOString()
+    });
+
     return next();
   }
 
@@ -104,22 +129,40 @@ export function createX402Middleware() {
     new ExactStellarScheme()
   );
 
-  resourceServer.onAfterSettle(async (ctx) => {
-    const transport = ctx.transportContext as { responseHeaders?: Record<string, string> };
-    const paymentId = transport?.responseHeaders?.["x-payment-attempt-id"];
-    const traceId = transport?.responseHeaders?.["x-payment-trace-id"];
+  resourceServer.onAfterVerify(async (ctx) => {
+    const transport = ctx.transportContext as { request?: Request, req?: Request } | Request;
+    const req = ('headers' in transport) ? transport : (transport.request || transport.req);
     
-    if (paymentId && traceId) {
-      updatePaymentAttemptEvidence(paymentId, {
-        status: "settled",
-        network,
-        amountUsd: Number(ctx.requirements.amount),
-        payToAddress: ctx.requirements.payTo,
-        facilitatorUrl: config.X402_FACILITATOR_URL,
-        transactionHash: ctx.result.transaction,
-        paymentPayload: typeof ctx.paymentPayload === "string" ? ctx.paymentPayload : JSON.stringify(ctx.paymentPayload)
+    if (req) {
+      const paymentId = `pay_${nanoid(10)}`;
+      req.headers["x-payment-attempt-id"] = paymentId;
+      
+      const providerId = getProviderFromContext(ctx.transportContext) ?? "unknown";
+      
+      savePaymentAttempt({
+        id: paymentId,
+        endpoint: req.path,
+        providerId,
+        evidence: {
+          status: "verified",
+          network,
+          amountUsd: Number(ctx.requirements.amount),
+          payToAddress: ctx.requirements.payTo,
+          facilitatorUrl: config.X402_FACILITATOR_URL,
+          paymentPayload: typeof ctx.paymentPayload === "string" ? ctx.paymentPayload : JSON.stringify(ctx.paymentPayload)
+        },
+        createdAt: new Date().toISOString()
       });
-      updateUsageEventEvidence(traceId, {
+    }
+  });
+
+  resourceServer.onAfterSettle(async (ctx) => {
+    const transport = ctx.transportContext as { request?: Request, req?: Request } | Request;
+    const req = ('headers' in transport) ? transport : (transport.request || transport.req);
+    const paymentId = req?.headers?.["x-payment-attempt-id"] as string | undefined;
+    
+    if (paymentId) {
+      updatePaymentAttemptEvidence(paymentId, {
         status: "settled",
         network,
         amountUsd: Number(ctx.requirements.amount),
@@ -132,7 +175,6 @@ export function createX402Middleware() {
   });
 
   resourceServer.onSettleFailure(async (ctx) => {
-    // Cannot correlate failure to database entry because transportContext is missing from SettleFailureContext
     // The entry will remain as "verified"
   });
 
