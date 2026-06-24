@@ -1,6 +1,88 @@
 {
   "usage": [
     {
+      "id": "use_test_456",
+      "mode": "news",
+      "endpoint": "/x402/news",
+      "providerId": "news.basic",
+      "queryOrUrl": "test",
+      "priceUsd": 0.015,
+      "evidence": {
+        "status": "failed",
+        "network": "stellar:testnet",
+        "amountUsd": 0.015,
+        "payToAddress": "G...",
+        "facilitatorUrl": "http://test",
+        "error": "Insufficient funds",
+        "paymentPayload": "raw_header_2"
+      },
+      "traceId": "trace_test_789",
+      "paymentId": "pay_YpZx97lna0",
+      "createdAt": "2026-06-24T18:05:58.837Z",
+      "latencyMs": 120
+    },
+    {
+      "id": "use_test_123",
+      "mode": "search",
+      "endpoint": "/x402/search",
+      "providerId": "search.basic",
+      "queryOrUrl": "test",
+      "priceUsd": 0.01,
+      "evidence": {
+        "status": "settled",
+        "network": "stellar:testnet",
+        "amountUsd": 0.01,
+        "payToAddress": "G...",
+        "facilitatorUrl": "http://test",
+        "transactionHash": "tx_hash_123",
+        "paymentPayload": "raw_header"
+      },
+      "traceId": "trace_test_456",
+      "paymentId": "pay_bz7w2CRD31",
+      "createdAt": "2026-06-24T18:05:58.605Z",
+      "latencyMs": 100
+    },
+    {
+      "id": "use_test_123",
+      "mode": "search",
+      "endpoint": "/x402/search",
+      "providerId": "search.basic",
+      "queryOrUrl": "test",
+      "priceUsd": 0.01,
+      "evidence": {
+        "status": "settled",
+        "network": "stellar:testnet",
+        "amountUsd": 0.01,
+        "payToAddress": "G...",
+        "facilitatorUrl": "http://...",
+        "transactionHash": "tx_hash_123",
+        "paymentPayload": "raw_header"
+      },
+      "traceId": "trace_test_456",
+      "createdAt": "2026-06-24T17:56:43.905Z",
+      "latencyMs": 100
+    },
+    {
+      "id": "use_test_123",
+      "mode": "search",
+      "endpoint": "/x402/search",
+      "providerId": "search.basic",
+      "queryOrUrl": "test",
+      "priceUsd": 0.01,
+      "evidence": {
+        "status": "settled",
+        "network": "stellar:testnet",
+        "amountUsd": 0.01,
+        "payToAddress": "G...",
+        "facilitatorUrl": "http://...",
+        "transactionHash": "tx_hash_123",
+        "paymentPayload": "raw_header"
+      },
+      "traceId": "trace_test_456",
+      "createdAt": "2026-06-24T17:56:01.750Z",
+      "latencyMs": 100
+    },
+    {
       "id": "use_4Lobxvue84",
       "mode": "scrape",
       "endpoint": "/x402/scrape",
@@ -201,6 +283,66 @@
     }
   ],
   "payments": [
+    {
+      "id": "pay_YpZx97lna0",
+      "endpoint": "/x402/news",
+      "providerId": "news.basic",
+      "evidence": {
+        "status": "failed",
+        "network": "stellar:testnet",
+        "amountUsd": 0.015,
+        "payToAddress": "G...",
+        "facilitatorUrl": "http://test",
+        "error": "Insufficient funds",
+        "paymentPayload": "raw_header_2"
+      },
+      "createdAt": "2026-06-24T18:05:58.810Z"
+    },
+    {
+      "id": "pay_bz7w2CRD31",
+      "endpoint": "/x402/search",
+      "providerId": "search.basic",
+      "evidence": {
+        "status": "settled",
+        "network": "stellar:testnet",
+        "amountUsd": 0.01,
+        "payToAddress": "G...",
+        "facilitatorUrl": "http://test",
+        "transactionHash": "tx_hash_123",
+        "paymentPayload": "raw_header"
+      },
+      "createdAt": "2026-06-24T18:05:58.499Z"
+    },
+    {
+      "id": "pay_test_123",
+      "endpoint": "/x402/search",
+      "providerId": "search.basic",
+      "evidence": {
+        "status": "settled",
+        "network": "stellar:testnet",
+        "amountUsd": 0.01,
+        "payToAddress": "G...",
+        "facilitatorUrl": "http://...",
+        "transactionHash": "tx_hash_123",
+        "paymentPayload": "raw_header"
+      },
+      "createdAt": "2026-06-24T17:56:43.897Z"
+    },
+    {
+      "id": "pay_test_123",
+      "endpoint": "/x402/search",
+      "providerId": "search.basic",
+      "evidence": {
+        "status": "settled",
+        "network": "stellar:testnet",
+        "amountUsd": 0.01,
+        "payToAddress": "G...",
+        "facilitatorUrl": "http://...",
+        "transactionHash": "tx_hash_123",
+        "paymentPayload": "raw_header"
+      },
+      "createdAt": "2026-06-24T17:56:01.745Z"
+    },
     {
       "id": "pay_JmqVA-Chnq",
       "endpoint": "/x402/scrape",

@@ -83,6 +83,7 @@ export interface UsageEvent {
   priceUsd: number;
   evidence: PaymentEvidence;
   traceId: string;
+  paymentId: string;
   createdAt: string;
   latencyMs: number;
 }

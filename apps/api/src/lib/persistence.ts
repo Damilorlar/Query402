@@ -63,6 +63,20 @@ export function updateUsageEventEvidence(traceId: string, evidence: PaymentEvide
   }
 }
 
+export function updateUsageEventsByPaymentId(paymentId: string, evidence: PaymentEvidence) {
+  const db = readDb();
+  let updated = false;
+  db.usage.forEach(u => {
+    if (u.paymentId === paymentId) {
+      u.evidence = evidence;
+      updated = true;
+    }
+  });
+  if (updated) {
+    writeDb(db);
+  }
+}
+
 export function getUsageEvents() {
   return readDb().usage;
 }

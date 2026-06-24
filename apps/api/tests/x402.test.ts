@@ -1,26 +1,38 @@
 import test from "node:test";
 import assert from "node:assert";
-import { updatePaymentAttemptEvidence, updateUsageEventEvidence, savePaymentAttempt, saveUsageEvent, getPaymentAttempts, getUsageEvents } from "../src/lib/persistence.js";
+import { saveUsageEvent, getPaymentAttempts, getUsageEvents } from "../src/lib/persistence.js";
+import { getX402LifecycleHandlers } from "../src/lib/x402.js";
+import { config } from "../src/lib/config.js";
 
 test("evidence pipeline updates correctly on settlement", async (t) => {
-  const paymentId = "pay_test_123";
-  const traceId = "trace_test_456";
-
-  savePaymentAttempt({
-    id: paymentId,
-    endpoint: "/x402/search",
-    providerId: "search.basic",
-    evidence: {
-      status: "verified",
-      network: "stellar:testnet",
-      amountUsd: 0.01,
-      payToAddress: "G...",
-      facilitatorUrl: "http://...",
-      paymentPayload: "raw_header"
+  const req = {
+    path: "/x402/search",
+    headers: {} as Record<string, string>
+  };
+  
+  const verifyCtx = {
+    transportContext: { 
+      req, 
+      request: req, 
+      adapter: { getQueryParam: (key: string) => key === "provider" ? "search.basic" : undefined } 
     },
-    createdAt: new Date().toISOString()
-  });
+    requirements: { amount: "0.01", payTo: "G..." },
+    paymentPayload: "raw_header"
+  };
 
+  const handlers = getX402LifecycleHandlers(config.STELLAR_NETWORK as string);
+
+  // 1. Simulate onAfterVerify which creates the payment attempt
+  await handlers.onAfterVerify(verifyCtx);
+  
+  const paymentId = req.headers["x-payment-attempt-id"];
+  assert.ok(paymentId, "onAfterVerify should set x-payment-attempt-id");
+
+  const paymentAfterVerify = getPaymentAttempts().find(p => p.id === paymentId);
+  assert.strictEqual(paymentAfterVerify?.evidence.status, "verified");
+
+  // 2. Simulate the endpoint handler persisting the usage event
+  const traceId = "trace_test_456";
   saveUsageEvent({
     id: "use_test_123",
     mode: "search",
@@ -28,49 +40,103 @@ test("evidence pipeline updates correctly on settlement", async (t) => {
     providerId: "search.basic",
     queryOrUrl: "test",
     priceUsd: 0.01,
-    evidence: {
-      status: "verified",
-      network: "stellar:testnet",
-      amountUsd: 0.01,
-      payToAddress: "G...",
-      facilitatorUrl: "http://...",
-      paymentPayload: "raw_header"
-    },
+    evidence: paymentAfterVerify.evidence,
     traceId,
+    paymentId,
     createdAt: new Date().toISOString(),
     latencyMs: 100
   });
 
-  updatePaymentAttemptEvidence(paymentId, {
-    status: "settled",
-    network: "stellar:testnet",
-    amountUsd: 0.01,
-    payToAddress: "G...",
-    facilitatorUrl: "http://...",
-    transactionHash: "tx_hash_123",
+  const usageAfterVerify = getUsageEvents().find(u => u.traceId === traceId);
+  assert.strictEqual(usageAfterVerify?.evidence.status, "verified");
+
+  // 3. Simulate onAfterSettle updating the payment
+  const settleCtx = {
+    transportContext: { req, request: req },
+    requirements: { amount: "0.01", payTo: "G..." },
+    result: { transaction: "tx_hash_123" },
     paymentPayload: "raw_header"
-  });
+  };
 
-  updateUsageEventEvidence(traceId, {
-    status: "settled",
-    network: "stellar:testnet",
-    amountUsd: 0.01,
-    payToAddress: "G...",
-    facilitatorUrl: "http://...",
-    transactionHash: "tx_hash_123",
-    paymentPayload: "raw_header"
-  });
+  await handlers.onAfterSettle(settleCtx);
 
-  const payment = getPaymentAttempts().find(p => p.id === paymentId);
-  const usage = getUsageEvents().find(u => u.traceId === traceId);
+  const paymentAfterSettle = getPaymentAttempts().find(p => p.id === paymentId);
+  const usageAfterSettle = getUsageEvents().find(u => u.traceId === traceId);
 
-  assert.strictEqual(payment?.evidence.status, "settled");
-  if (payment?.evidence.status === "settled") {
-    assert.strictEqual(payment.evidence.transactionHash, "tx_hash_123");
+  assert.strictEqual(paymentAfterSettle?.evidence.status, "settled");
+  if (paymentAfterSettle?.evidence.status === "settled") {
+    assert.strictEqual(paymentAfterSettle.evidence.transactionHash, "tx_hash_123");
   }
 
-  assert.strictEqual(usage?.evidence.status, "settled");
-  if (usage?.evidence.status === "settled") {
-    assert.strictEqual(usage.evidence.transactionHash, "tx_hash_123");
+  assert.strictEqual(usageAfterSettle?.evidence.status, "settled");
+  if (usageAfterSettle?.evidence.status === "settled") {
+    assert.strictEqual(usageAfterSettle.evidence.transactionHash, "tx_hash_123");
+  }
+});
+
+test("evidence pipeline updates correctly on failure", async (t) => {
+  const req = {
+    path: "/x402/news",
+    headers: {} as Record<string, string>
+  };
+  
+  const verifyCtx = {
+    transportContext: { 
+      req, 
+      request: req,
+      adapter: { getQueryParam: (key: string) => key === "provider" ? "news.basic" : undefined }
+    },
+    requirements: { amount: "0.015", payTo: "G..." },
+    paymentPayload: "raw_header_2"
+  };
+
+  const handlers = getX402LifecycleHandlers(config.STELLAR_NETWORK as string);
+
+  // 1. Simulate onAfterVerify which creates the payment attempt
+  await handlers.onAfterVerify(verifyCtx);
+  
+  const paymentId = req.headers["x-payment-attempt-id"];
+  assert.ok(paymentId, "onAfterVerify should set x-payment-attempt-id");
+
+  const paymentAfterVerify = getPaymentAttempts().find(p => p.id === paymentId);
+  assert.strictEqual(paymentAfterVerify?.evidence.status, "verified");
+
+  // 2. Simulate the endpoint handler persisting the usage event
+  const traceId = "trace_test_789";
+  saveUsageEvent({
+    id: "use_test_456",
+    mode: "news",
+    endpoint: "/x402/news",
+    providerId: "news.basic",
+    queryOrUrl: "test",
+    priceUsd: 0.015,
+    evidence: paymentAfterVerify.evidence,
+    traceId,
+    paymentId,
+    createdAt: new Date().toISOString(),
+    latencyMs: 120
+  });
+
+  // 3. Simulate onSettleFailure updating the payment and usage
+  const failCtx = {
+    transportContext: { req, request: req },
+    requirements: { amount: "0.015", payTo: "G..." },
+    error: new Error("Insufficient funds"),
+    paymentPayload: "raw_header_2"
+  };
+
+  await handlers.onSettleFailure(failCtx);
+
+  const paymentAfterFail = getPaymentAttempts().find(p => p.id === paymentId);
+  const usageAfterFail = getUsageEvents().find(u => u.traceId === traceId);
+
+  assert.strictEqual(paymentAfterFail?.evidence.status, "failed");
+  if (paymentAfterFail?.evidence.status === "failed") {
+    assert.strictEqual(paymentAfterFail.evidence.error, "Insufficient funds");
+  }
+
+  assert.strictEqual(usageAfterFail?.evidence.status, "failed");
+  if (usageAfterFail?.evidence.status === "failed") {
+    assert.strictEqual(usageAfterFail.evidence.error, "Insufficient funds");
   }
 });

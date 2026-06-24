@@ -35,6 +35,7 @@ function persistUsageEvent(input: {
     priceUsd: input.priceUsd,
     evidence: paymentAttempt.evidence,
     traceId: input.traceId,
+    paymentId: paymentId,
     createdAt: now,
     latencyMs: input.latencyMs
   });
