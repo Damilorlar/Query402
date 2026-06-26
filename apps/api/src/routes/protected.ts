@@ -40,7 +40,7 @@ function persistUsageEvent(input: {
     latencyMs: input.latencyMs
   });
 
-  return paymentId;
+  return { paymentId, evidence: paymentAttempt.evidence };
 }
 
 protectedRouter.get("/x402/search", async (req, res, next) => {
@@ -56,7 +56,7 @@ protectedRouter.get("/x402/search", async (req, res, next) => {
       q: parsed.data.q
     });
 
-    const paymentId = persistUsageEvent({
+    const { paymentId, evidence } = persistUsageEvent({
       req,
       mode: "search",
       endpoint: "/x402/search",
@@ -74,7 +74,8 @@ protectedRouter.get("/x402/search", async (req, res, next) => {
       payment: {
         network: config.STELLAR_NETWORK,
         facilitatorUrl: config.X402_FACILITATOR_URL,
-        paymentResponseHeader: req.header("payment-response") ?? null
+        paymentResponseHeader: req.header("payment-response") ?? null,
+        evidence
       },
       result
     });
@@ -96,7 +97,7 @@ protectedRouter.get("/x402/news", async (req, res, next) => {
       q: parsed.data.q
     });
 
-    const paymentId = persistUsageEvent({
+    const { paymentId, evidence } = persistUsageEvent({
       req,
       mode: "news",
       endpoint: "/x402/news",
@@ -114,7 +115,8 @@ protectedRouter.get("/x402/news", async (req, res, next) => {
       payment: {
         network: config.STELLAR_NETWORK,
         facilitatorUrl: config.X402_FACILITATOR_URL,
-        paymentResponseHeader: req.header("payment-response") ?? null
+        paymentResponseHeader: req.header("payment-response") ?? null,
+        evidence
       },
       result
     });
@@ -136,7 +138,7 @@ protectedRouter.get("/x402/scrape", async (req, res, next) => {
       url: parsed.data.url
     });
 
-    const paymentId = persistUsageEvent({
+    const { paymentId, evidence } = persistUsageEvent({
       req,
       mode: "scrape",
       endpoint: "/x402/scrape",
@@ -154,7 +156,8 @@ protectedRouter.get("/x402/scrape", async (req, res, next) => {
       payment: {
         network: config.STELLAR_NETWORK,
         facilitatorUrl: config.X402_FACILITATOR_URL,
-        paymentResponseHeader: req.header("payment-response") ?? null
+        paymentResponseHeader: req.header("payment-response") ?? null,
+        evidence
       },
       result
     });

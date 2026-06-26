@@ -5,6 +5,7 @@ export interface PaidQueryResponse {
     network: string;
     facilitatorUrl: string;
     paymentResponseHeader: string | null;
+    evidence: PaymentEvidence;
   };
   result: QueryResult;
 }

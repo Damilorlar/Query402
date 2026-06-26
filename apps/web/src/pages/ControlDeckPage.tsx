@@ -332,8 +332,17 @@ export default function ControlDeckPage() {
                 </div>
 
                 <div className="trace-box">
-                  <p>evidence: {result.payment.paymentResponseHeader?.startsWith('demo_tx_') ? 'demo-paid' : 'verified'}</p>
-                  <p>payload: {result.payment.paymentResponseHeader ?? "<none>"}</p>
+                  <p>evidence: {result.payment.evidence.status}</p>
+                  <p>
+                    payload:{" "}
+                    {result.payment.evidence.status === "demo-paid"
+                      ? result.payment.evidence.demoId
+                      : result.payment.evidence.status === "settled"
+                        ? result.payment.evidence.transactionHash
+                        : result.payment.evidence.status === "failed"
+                          ? result.payment.evidence.error
+                          : result.payment.paymentResponseHeader ?? "<none>"}
+                  </p>
                   <p>network: {result.payment.network}</p>
                 </div>
 

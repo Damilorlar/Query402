@@ -128,17 +128,22 @@ export function persistSponsoredPayment(input: {
   const paymentSource = input.paymentSource ?? "sponsored";
   const sponsorPublicKey = input.sponsorPublicKey ?? config.DEMO_CLIENT_PUBLIC_KEY;
 
+  const evidence: PaymentEvidence = {
+    status: "settled",
+    network: config.STELLAR_NETWORK,
+    amountUsd: input.priceUsd,
+    payToAddress: config.X402_PAY_TO_ADDRESS,
+    facilitatorUrl: config.X402_FACILITATOR_URL,
+    payerPublicKey: input.walletPublicKey,
+    transactionHash: input.paymentResponseHeader ?? "sponsored_tx",
+    paymentPayload: "sponsored"
+  };
+
   savePaymentAttempt({
     id: paymentId,
     endpoint: input.endpoint,
     providerId: input.provider,
-    amountUsd: input.priceUsd,
-    network: config.STELLAR_NETWORK,
-    payerPublicKey: input.walletPublicKey,
-    payToAddress: config.X402_PAY_TO_ADDRESS,
-    facilitatorUrl: config.X402_FACILITATOR_URL,
-    status: "settled",
-    transactionHash: input.paymentResponseHeader ?? undefined,
+    evidence,
     createdAt: now,
     sponsorshipGrantId: input.sponsorshipGrantId,
     policyDecision: input.policyDecision,
@@ -153,12 +158,9 @@ export function persistSponsoredPayment(input: {
     providerId: input.provider,
     queryOrUrl: input.queryOrUrl,
     priceUsd: input.priceUsd,
-    network: config.STELLAR_NETWORK,
-    paymentStatus: "paid",
-    paymentTxHash: input.paymentResponseHeader ?? undefined,
-    facilitatorUrl: config.X402_FACILITATOR_URL,
-    payerPublicKey: input.walletPublicKey,
+    evidence,
     traceId: input.traceId,
+    paymentId,
     createdAt: now,
     latencyMs: input.latencyMs,
     sponsorshipGrantId: input.sponsorshipGrantId,
