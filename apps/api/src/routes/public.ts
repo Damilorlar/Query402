@@ -2,7 +2,7 @@ import { Router } from "express";
 import { providers } from "../lib/pricing.js";
 import { getAnalyticsSummary, getUsageEvents } from "../lib/persistence.js";
 import { config } from "../lib/config.js";
-import { getCatalog } from "../services/query-service.js";
+import { getCatalog, fetchPaginatedAnalytics } from "../services/query-service.js";
 
 export const publicRouter = Router();
 
@@ -27,6 +27,14 @@ publicRouter.get("/api/usage", (_req, res) => {
   res.json({ usage: getUsageEvents() });
 });
 
-publicRouter.get("/api/analytics", (_req, res) => {
-  res.json(getAnalyticsSummary());
+publicRouter.get("/api/analytics", async (req, res, next) => {
+  try {
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
+    const cursor = req.query.cursor ? (req.query.cursor as string) : null;
+
+    const result = await fetchPaginatedAnalytics(limit, cursor);
+    return res.json(result);
+  } catch (error) {
+    next(error);
+  }
 });

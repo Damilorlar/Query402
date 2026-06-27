@@ -73,3 +73,35 @@ export interface AnalyticsSummary {
   recentTransactions: PaymentAttempt[];
   recentUsage: UsageEvent[];
 }
+
+export interface PrivacySafeAnalyticsRecord {
+  id: string;
+  timestamp: string;
+  payerAddress: string;
+  volumeType: 'demo' | 'settled';
+  amount: number;
+  asset: string;
+}
+
+export interface PaginatedAnalyticsResponse {
+  success: boolean;
+  hasMore: boolean;
+  nextCursor: string | null;
+  data: PrivacySafeAnalyticsRecord[];
+}
+
+export interface PrivacySafeAnalyticsRecord {
+  id: string;
+  timestamp: string;
+  payerAddress: string;
+  volumeType: 'demo' | 'settled';
+  amount: number;
+  asset: string;
+}
+
+export interface PaginatedAnalyticsResponse {
+  success: boolean;
+  hasMore: boolean;
+  nextCursor: string | null;
+  data: PrivacySafeAnalyticsRecord[];
+}
