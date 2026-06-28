@@ -356,3 +356,43 @@ Judge talking points (30-second version):
 - [x] Usage + spend analytics
 - [x] Env + setup docs
 - [x] Frontend dashboard
+
+## Troubleshooting
+
+### Agent client fails with a network error
+
+If the agent client throws a connection error such as `ECONNREFUSED` or `fetch failed`, the most common cause is that the API server is not running or `API_BASE_URL` is pointing to the wrong address.
+
+**1. Confirm the API server is running**
+
+Open a terminal and start the API:
+
+```sh
+npm run dev --workspace @query402/api
+```
+
+The server should log something like `Listening on http://localhost:3000`.
+
+**2. Set `API_BASE_URL` for local development**
+
+The agent client reads `API_BASE_URL` from the environment. For local development it should point to the API server:
+
+```sh
+export API_BASE_URL=http://localhost:3000
+```
+
+Or add it to a `.env` file in `apps/agent-client/`:
+
+```sh
+API_BASE_URL=http://localhost:3000
+```
+
+**3. Run the agent demo**
+
+Once the API is running and `API_BASE_URL` is set, start the agent demo:
+
+```sh
+npm run demo --workspace @query402/agent-client
+```
+
+**Note:** Never commit real private keys or funded wallet secrets to `.env` files. Use testnet keys only for local development.
