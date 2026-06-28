@@ -4,12 +4,14 @@ import { createEd25519Signer } from "@x402/stellar";
 import { ExactStellarScheme } from "@x402/stellar/exact/client";
 import { nanoid } from "nanoid";
 import { config } from "./config.js";
+import { buildPaidClientRequestKey, getIdempotencyKey } from "./idempotency.js";
 
-export async function runPaidQuery(input: {
+export function buildPaidQueryEndpoint(input: {
   mode: "search" | "news" | "scrape";
   provider: string;
   query?: string;
   url?: string;
+  apiBaseUrl?: string;
 }) {
   const params = new URLSearchParams({ provider: input.provider });
 
@@ -25,7 +27,27 @@ export async function runPaidQuery(input: {
     params.set("q", input.query);
   }
 
-  const endpoint = `${config.API_BASE_URL}/x402/${input.mode}?${params.toString()}`;
+  const baseUrl = input.apiBaseUrl ?? config.API_BASE_URL;
+  return `${baseUrl}/x402/${input.mode}?${params.toString()}`;
+}
+
+export async function runPaidQuery(input: {
+  mode: "search" | "news" | "scrape";
+  provider: string;
+  query?: string;
+  url?: string;
+}) {
+  const endpoint = buildPaidQueryEndpoint(input);
+  const idempotencyKey = getIdempotencyKey(
+    buildPaidClientRequestKey({
+      route: `/x402/${input.mode}`,
+      mode: input.mode,
+      provider: input.provider,
+      query: input.query,
+      url: input.url,
+      payer: config.DEMO_CLIENT_PUBLIC_KEY ?? "agent-client"
+    })
+  );
   const isDemoMode = config.DEMO_MODE === "true";
 
   const response = isDemoMode
@@ -33,7 +55,8 @@ export async function runPaidQuery(input: {
         method: "GET",
         headers: {
           "x-query402-demo-paid": "true",
-          "payment-response": `demo_tx_${nanoid(10)}`
+          "payment-response": `demo_tx_${nanoid(10)}`,
+          "Idempotency-Key": idempotencyKey
         }
       })
     : await (async () => {
@@ -52,7 +75,12 @@ export async function runPaidQuery(input: {
         );
 
         const fetchWithPayment = wrapFetchWithPayment(fetch, client);
-        return fetchWithPayment(endpoint, { method: "GET" });
+        return fetchWithPayment(endpoint, {
+          method: "GET",
+          headers: {
+            "Idempotency-Key": idempotencyKey
+          }
+        });
       })();
 
   const json = await response.json();

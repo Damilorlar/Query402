@@ -21,11 +21,20 @@
     "preview:web": "npm run preview --workspace @query402/web",
     "build": "npm run build --workspaces",
     "typecheck": "npm run typecheck --workspaces",
-    "test": "npm run test --workspace @query402/api",
-    "lint": "npm run lint --workspaces",
-    "format": "npm run format --workspaces"
+    "test": "npm run test --workspace @query402/shared && npm run test --workspace @query402/api && npm run test --workspace @query402/agent-client",
+    "test:coverage": "npm run test:coverage --workspace @query402/api",
+    "migrate:analytics": "npm run migrate:analytics --workspace @query402/api",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check:source-artifacts": "node scripts/check-source-artifacts.mjs"
   },
   "devDependencies": {
-    "typescript": "^5.8.3"
+    "@eslint/js": "^9.27.0",
+    "eslint": "^9.27.0",
+    "eslint-config-prettier": "^10.1.5",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.32.1"
   }
 }

@@ -2,8 +2,7 @@ import { signMessage } from "@stellar/freighter-api";
 import type { QueryMode, SignedGrant, SponsorshipChallenge } from "@query402/shared";
 import type { PaidQueryResponse } from "../types.js";
 import { fetchJson } from "./api.js";
-
-const idempotencyKeys = new Map<string, string>();
+import { buildPaidClientRequestKey, getIdempotencyKey } from "./idempotency.js";
 
 function extractFreighterError(error: unknown) {
   if (!error) {
@@ -33,33 +32,6 @@ function normalizeSignature(signedMessage: string | Buffer | null): string {
   return Buffer.from(signedMessage).toString("base64");
 }
 
-function buildRequestKey(input: {
-  mode: QueryMode;
-  provider: string;
-  query?: string;
-  url?: string;
-  walletAddress: string;
-}) {
-  return JSON.stringify({
-    mode: input.mode,
-    provider: input.provider,
-    query: input.query ?? null,
-    url: input.url ?? null,
-    wallet: input.walletAddress
-  });
-}
-
-function getIdempotencyKey(requestKey: string): string {
-  const existing = idempotencyKeys.get(requestKey);
-  if (existing) {
-    return existing;
-  }
-
-  const key = crypto.randomUUID();
-  idempotencyKeys.set(requestKey, key);
-  return key;
-}
-
 export async function fetchSponsorshipEnabled(apiBaseUrl: string): Promise<boolean> {
   const health = await fetchJson<{ sponsorshipEnabled?: boolean }>(`${apiBaseUrl}/health`);
   return health.sponsorshipEnabled === true;
@@ -73,11 +45,14 @@ export async function runSponsoredPaidQuery(input: {
   url?: string;
   walletAddress: string;
 }): Promise<PaidQueryResponse> {
-  const challenge = await fetchJson<SponsorshipChallenge>(`${input.apiBaseUrl}/api/sponsorship/challenge`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ wallet: input.walletAddress })
-  });
+  const challenge = await fetchJson<SponsorshipChallenge>(
+    `${input.apiBaseUrl}/api/sponsorship/challenge`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wallet: input.walletAddress })
+    }
+  );
 
   const signResult = await signMessage(challenge.message, { address: input.walletAddress });
   if (signResult.error || !signResult.signedMessage) {
@@ -94,7 +69,14 @@ export async function runSponsoredPaidQuery(input: {
     })
   });
 
-  const requestKey = buildRequestKey(input);
+  const requestKey = buildPaidClientRequestKey({
+    route: "/api/paid/run",
+    mode: input.mode,
+    provider: input.provider,
+    query: input.query,
+    url: input.url,
+    payer: input.walletAddress
+  });
   const idempotencyKey = getIdempotencyKey(requestKey);
   const grantHeader = btoa(JSON.stringify(signedGrant));
 

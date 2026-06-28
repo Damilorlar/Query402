@@ -6,6 +6,11 @@
   <img src="./public/Query402-logo.png" alt="Query402 logo" width="180" />
   <h1>Query402</h1>
   <p><strong>Agentic pay-per-query internet access on Stellar with x402.</strong></p>
+  <p>
+    <a href="https://github.com/emrekayat/Query402/actions/workflows/ci.yml">
+      <img src="https://github.com/emrekayat/Query402/actions/workflows/ci.yml/badge.svg" alt="CI status" />
+    </a>
+  </p>
 </div>
 
 Query402 is a hackathon-ready marketplace-style router where agents can buy `search`, `news`, and `scrape` results per request instead of paying monthly subscriptions.
@@ -29,7 +34,7 @@ Query402 is a hackathon-ready marketplace-style router where agents can buy `sea
 - Express API with provider catalog and protected paid routes.
 - Provider abstraction for `search`, `news`, `scrape`.
 - Configurable per-request pricing.
-- Usage + payment persistence in JSON (`apps/api/data/db.json`).
+- Usage + payment persistence in SQLite (`apps/api/data/analytics.db`) via atomic storage adapter.
 - Analytics endpoint for total spend and category breakdown.
 - Agent CLI with commands for search/news/scrape.
 - Deterministic `DEMO_MODE` fallback for hackathon reliability.
@@ -93,6 +98,7 @@ Copy `.env.example` to `.env` and fill values:
 - Optional keys: `BRAVE_API_KEY`, `SERPAPI_API_KEY`, `NEWS_API_KEY`, `GROQ_API_KEY`, `GROQ_MODEL`
 
 Deployment note:
+
 - Render (API): set server vars like `GROQ_*`, `X402_*`, `CORS_ORIGINS`.
 - Vercel (Web): set only `VITE_*` vars (for example `VITE_API_BASE_URL`).
 
@@ -110,6 +116,38 @@ npm install
 npm run typecheck
 npm run build
 ```
+
+## Tests
+
+Run the full deterministic test suite from the repository root:
+
+```bash
+npm test
+```
+
+Generate coverage output and enforce the documented baseline thresholds:
+
+```bash
+npm run test:coverage
+```
+
+Details: [`docs/testing.md`](./docs/testing.md)
+
+## Quality gates
+
+Run the same checks locally that CI enforces on pull requests:
+
+```bash
+npm ci
+npm run typecheck
+npm run build
+npm run test
+npm run lint
+npm run format:check
+npm run check:source-artifacts
+```
+
+CI uses the Node version from `.nvmrc`, installs dependencies with `npm ci`, and does not require credentials or live Stellar payments.
 
 ## Run backend API
 
@@ -169,16 +207,19 @@ If this passes, output includes payment proof fields (`payment-response`, trace 
 
 1. Set `DEMO_MODE=false` in `.env`.
 2. Fill real funded keys (not placeholders):
-  - `DEMO_CLIENT_SECRET_KEY`
-  - `DEMO_CLIENT_PUBLIC_KEY`
-  - `X402_PAY_TO_ADDRESS`
-  - `X402_FACILITATOR_API_KEY` (for `channels.openzeppelin.com` facilitator)
+
+- `DEMO_CLIENT_SECRET_KEY`
+- `DEMO_CLIENT_PUBLIC_KEY`
+- `X402_PAY_TO_ADDRESS`
+- `X402_FACILITATOR_API_KEY` (for `channels.openzeppelin.com` facilitator)
+
 3. If needed, create facilitator key: `https://channels.openzeppelin.com/testnet/gen`
 4. Ensure API is running (`npm run dev:api`).
 5. Run `npm run validate:real`.
 6. Keep CLI output as judge proof screenshot/log.
 
 Notes:
+
 - Script checks API health and facilitator `/supported` reachability before payment attempt.
 - If facilitator/wallet funding is not ready, the script fails fast with explicit reason.
 
@@ -229,6 +270,7 @@ npm run cli -- search "latest soroban updates" --provider search.basic
 ```
 
 Expected proof during demo:
+
 - `Status: 200`
 - `payment-response` header value
 - provider and paid price in output
@@ -268,7 +310,6 @@ Expected proof during demo:
 
 - Add citation/link verification and stricter source quality filters for AI-generated results.
 - Add richer payment metadata parsing from payment headers.
-- Add SQLite persistence for more advanced analytics queries.
 - Add integration tests with a reachable facilitator in CI.
 
 ## Submission packaging
