@@ -19,6 +19,7 @@ export interface PaymentEvidenceSummary {
   payer?: string;
   transactionHash?: string;
   proofLinks: PaymentProofLinks;
+  error?: string;
 }
 
 export interface PaidQueryResponse {
