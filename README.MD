@@ -371,20 +371,20 @@ Open a terminal and start the API:
 npm run dev --workspace @query402/api
 ```
 
-The server should log something like `Listening on http://localhost:3000`.
+The server should log something like `Listening on http://localhost:3001`.
 
 **2. Set `API_BASE_URL` for local development**
 
 The agent client reads `API_BASE_URL` from the environment. For local development it should point to the API server:
 
 ```sh
-export API_BASE_URL=http://localhost:3000
+export API_BASE_URL=http://localhost:3001
 ```
 
 Or add it to a `.env` file in `apps/agent-client/`:
 
 ```sh
-API_BASE_URL=http://localhost:3000
+API_BASE_URL=http://localhost:3001
 ```
 
 **3. Run the agent demo**
