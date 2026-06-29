@@ -54,6 +54,9 @@ async function main() {
   console.log(`Endpoint: ${result.endpoint}`);
   console.log(`Provider: ${provider}`);
   console.log(`Status: ${result.status}`);
+  if (!result.ok && (result.body as any)?.errorCode) {
+    console.log(`Error Code: ${(result.body as any).errorCode}`);
+  }
   console.log(`Payment Header: ${result.paymentResponse ?? "<none>"}`);
 
   const payload = result.body as Record<string, any>;

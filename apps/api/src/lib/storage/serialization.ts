@@ -159,7 +159,8 @@ export function usageEventToRow(event: UsageEvent) {
     sponsorship_grant_id: event.sponsorshipGrantId ?? null,
     policy_decision: event.policyDecision ?? null,
     payment_source: event.paymentSource ?? null,
-    sponsor_public_key: event.sponsorPublicKey ?? null
+    sponsor_public_key: event.sponsorPublicKey ?? null,
+    error_code: event.errorCode ?? null
   };
 }
 
@@ -211,7 +212,8 @@ export function rowToUsageEvent(row: Record<string, unknown>): UsageEvent {
     paymentSource: row.payment_source
       ? (row.payment_source as UsageEvent["paymentSource"])
       : undefined,
-    sponsorPublicKey: row.sponsor_public_key ? String(row.sponsor_public_key) : undefined
+    sponsorPublicKey: row.sponsor_public_key ? String(row.sponsor_public_key) : undefined,
+    errorCode: row.error_code ? (row.error_code as UsageEvent["errorCode"]) : undefined
   };
 }
 
@@ -238,7 +240,8 @@ export function paymentAttemptToRow(payment: PaymentAttempt) {
     sponsorship_grant_id: payment.sponsorshipGrantId ?? null,
     policy_decision: payment.policyDecision ?? null,
     payment_source: payment.paymentSource ?? null,
-    sponsor_public_key: payment.sponsorPublicKey ?? null
+    sponsor_public_key: payment.sponsorPublicKey ?? null,
+    error_code: payment.errorCode ?? null
   };
 }
 
@@ -269,6 +272,7 @@ export function rowToPaymentAttempt(row: Record<string, unknown>): PaymentAttemp
     paymentSource: row.payment_source
       ? (row.payment_source as PaymentAttempt["paymentSource"])
       : undefined,
-    sponsorPublicKey: row.sponsor_public_key ? String(row.sponsor_public_key) : undefined
+    sponsorPublicKey: row.sponsor_public_key ? String(row.sponsor_public_key) : undefined,
+    errorCode: row.error_code ? (row.error_code as PaymentAttempt["errorCode"]) : undefined
   };
 }

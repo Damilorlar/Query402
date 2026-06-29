@@ -1,3 +1,6 @@
+import { z } from "zod";
+import { paidRouteErrorCodeSchema } from "./schemas.js";
+
 export type QueryMode = "search" | "news" | "scrape";
 export type ProviderCategory = QueryMode;
 export type SourceType = "live" | "deterministic-fallback" | "unavailable";
@@ -10,6 +13,7 @@ export type ExecutionFallbackReason =
   | "missing-fallback";
 export type CircuitBreakerState = "closed" | "half-open" | "open";
 export type PaymentSource = "sponsored" | "wallet" | "demo";
+export type PaidRouteErrorCode = z.infer<typeof paidRouteErrorCodeSchema>;
 
 export interface ProviderExecutionMetadata {
   providerId: string;
@@ -78,6 +82,7 @@ export interface UsageEvent {
   policyDecision?: string;
   paymentSource?: PaymentSource;
   sponsorPublicKey?: string;
+  errorCode?: PaidRouteErrorCode;
 }
 
 export interface PaymentAttempt {
@@ -101,6 +106,7 @@ export interface PaymentAttempt {
   policyDecision?: string;
   paymentSource?: PaymentSource;
   sponsorPublicKey?: string;
+  errorCode?: PaidRouteErrorCode;
 }
 
 export interface AnalyticsSummary {

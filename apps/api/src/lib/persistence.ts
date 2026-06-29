@@ -26,6 +26,7 @@ export interface PersistPaidRequestInput {
   paymentResponseHeader: string | null;
   execution: ProviderExecutionMetadata;
   payerPublicKey?: string;
+  errorCode?: string;
 }
 
 export interface PersistSponsoredPaymentInput extends PersistPaidRequestInput {
@@ -53,6 +54,7 @@ function buildPaymentAttempt(
     facilitatorUrl: config.X402_FACILITATOR_URL,
     status: "settled",
     transactionHash: input.paymentResponseHeader ?? undefined,
+    errorCode: input.errorCode as any,
     createdAt: now,
     ...overrides
   };
@@ -77,6 +79,7 @@ function buildUsageEvent(
     facilitatorUrl: config.X402_FACILITATOR_URL,
     payerPublicKey: input.payerPublicKey,
     traceId: input.traceId,
+    errorCode: input.errorCode as any,
     createdAt: now,
     latencyMs: input.latencyMs,
     execution: input.execution,

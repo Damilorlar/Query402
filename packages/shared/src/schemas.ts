@@ -104,3 +104,12 @@ export const sponsorshipPreviewResponseSchema = z.object({
   }),
   reason: z.string().optional()
 });
+
+export const paidRouteErrorCodeSchema = z.enum([
+  "payment_required",
+  "payment_invalid",
+  "provider_timeout",
+  "provider_failed",
+  "invalid_query",
+  "internal_error"
+]);

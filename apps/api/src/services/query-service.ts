@@ -35,6 +35,20 @@ function sanitizeErrorMessage(message: string): string {
     .replace(/https?:\/\/\S+/gi, "[redacted-url]");
 }
 
+export class ProviderTimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ProviderTimeoutError";
+  }
+}
+
+export class ProviderFailedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ProviderFailedError";
+  }
+}
+
 export async function executeQuery(params: {
   mode: "search" | "news" | "scrape";
   provider: string;
@@ -66,7 +80,11 @@ export async function executeQuery(params: {
       },
       "provider execution failed"
     );
-    throw error;
+    const msg = getErrorMessage(error);
+    if (msg.toLowerCase().includes("timeout")) {
+      throw new ProviderTimeoutError(msg);
+    }
+    throw new ProviderFailedError(msg);
   }
 
   const latencyMs = execution.execution.observedDurationMs;

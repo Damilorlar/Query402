@@ -119,8 +119,9 @@ async function main() {
   });
 
   if (!result.ok) {
+    const errorCode = (result.body as any)?.errorCode ? ` [${(result.body as any).errorCode}]` : "";
     throw new Error(
-      `Paid request failed with status ${result.status}. Response: ${JSON.stringify(result.body)}`
+      `Paid request failed with status ${result.status}${errorCode}. Response: ${JSON.stringify(result.body)}`
     );
   }
 
