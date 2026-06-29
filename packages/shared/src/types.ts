@@ -83,6 +83,8 @@ export interface PaymentAttempt {
   sponsorPublicKey?: string;
 }
 
+export type LatencyBucket = "<1s" | "1-3s" | "3-10s" | ">10s" | "unknown";
+
 export interface AnalyticsSummary {
   totalQueries: number;
   totalSpendUsd: number;
@@ -92,6 +94,7 @@ export interface AnalyticsSummary {
   spendByCategory: Record<QueryMode, number>;
   settledSpendByCategory: Record<QueryMode, number>;
   demoSpendByCategory: Record<QueryMode, number>;
+  latencyBuckets: Record<LatencyBucket, number>;
   recentTransactions: PaymentAttempt[];
   recentUsage: UsageEvent[];
 }

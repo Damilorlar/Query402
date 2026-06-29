@@ -82,6 +82,13 @@ describe("public routes", () => {
         news: 0,
         scrape: 0
       },
+      latencyBuckets: {
+        "<1s": 0,
+        "1-3s": 0,
+        "3-10s": 0,
+        ">10s": 0,
+        unknown: 0
+      },
       recentUsage: [],
       recentTransactions: []
     });
@@ -116,5 +123,68 @@ describe("public routes", () => {
     expect(analyticsResponse.body.totalQueries).toBe(1);
     expect(analyticsResponse.body.totalSpendUsd).toBe(0.01);
     expect(analyticsResponse.body.spendByCategory.search).toBe(0.01);
+  });
+
+  it("returns latency bucket counts that classify queries by execution time", async () => {
+    const app = await createPublicApp();
+    const { saveUsageEvent } = await import("../lib/persistence.js");
+
+    await saveUsageEvent(
+      buildTestUsageEvent({
+        id: "use_latency_fast",
+        traceId: "trace_fast",
+        createdAt: "2026-06-21T10:00:00.000Z",
+        latencyMs: 500
+      })
+    );
+    await saveUsageEvent(
+      buildTestUsageEvent({
+        id: "use_latency_medium",
+        traceId: "trace_medium",
+        createdAt: "2026-06-21T10:00:01.000Z",
+        latencyMs: 2000
+      })
+    );
+    await saveUsageEvent(
+      buildTestUsageEvent({
+        id: "use_latency_slow",
+        traceId: "trace_slow",
+        createdAt: "2026-06-21T10:00:02.000Z",
+        latencyMs: 5000
+      })
+    );
+    await saveUsageEvent(
+      buildTestUsageEvent({
+        id: "use_latency_very_slow",
+        traceId: "trace_very_slow",
+        createdAt: "2026-06-21T10:00:03.000Z",
+        latencyMs: 15000
+      })
+    );
+    await saveUsageEvent(
+      buildTestUsageEvent({
+        id: "use_latency_unknown",
+        traceId: "trace_unknown",
+        createdAt: "2026-06-21T10:00:04.000Z",
+        latencyMs: 0
+      })
+    );
+
+    const analyticsResponse = await request(app).get("/api/analytics");
+
+    expect(analyticsResponse.status).toBe(200);
+    expect(analyticsResponse.body.latencyBuckets).toEqual({
+      "<1s": 1,
+      "1-3s": 1,
+      "3-10s": 1,
+      ">10s": 1,
+      unknown: 1
+    });
+    expect(analyticsResponse.body.totalQueries).toBe(5);
+    expect(analyticsResponse.body.latencyBuckets["<1s"]).toBe(1);
+    expect(analyticsResponse.body.latencyBuckets["1-3s"]).toBe(1);
+    expect(analyticsResponse.body.latencyBuckets["3-10s"]).toBe(1);
+    expect(analyticsResponse.body.latencyBuckets[">10s"]).toBe(1);
+    expect(analyticsResponse.body.latencyBuckets.unknown).toBe(1);
   });
 });

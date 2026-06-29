@@ -1,4 +1,4 @@
-import type { ProviderDefinition, QueryMode, QueryResult } from "@query402/shared";
+import type { LatencyBucket, ProviderDefinition, QueryMode, QueryResult } from "@query402/shared";
 
 export interface PaidQueryResponse {
   payment: {
@@ -13,6 +13,7 @@ export interface AnalyticsResponse {
   totalQueries: number;
   totalSpendUsd: number;
   spendByCategory: Record<QueryMode, number>;
+  latencyBuckets: Record<LatencyBucket, number>;
   recentTransactions: Array<{
     id: string;
     amountUsd: number;
