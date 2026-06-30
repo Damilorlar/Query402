@@ -126,16 +126,6 @@ export interface AnalyticsSummary {
   recentUsage: UsageEvent[];
 }
 
-export interface SettlementDigest {
-  totalPaidRuns: number;
-  totalSettledAmountUsd: number;
-  settledAmountByAssetNetwork: Record<string, number>;
-  withPaymentEvidence: number;
-  missingPaymentEvidence: number;
-  latestPaymentTimestamp: string | null;
-  generatedAt: string;
-}
-
 export interface SponsorshipGrant {
   grantId: string;
   wallet: string;
