@@ -160,7 +160,8 @@ export function usageEventToRow(event: UsageEvent) {
     policy_decision: event.policyDecision ?? null,
     payment_source: event.paymentSource ?? null,
     sponsor_public_key: event.sponsorPublicKey ?? null,
-    error_code: event.errorCode ?? null
+    price_outlier: event.priceOutlier ? 1 : 0,
+    price_outlier_reason: event.priceOutlierReason ?? null
   };
 }
 
@@ -172,6 +173,8 @@ export function rowToUsageEvent(row: Record<string, unknown>): UsageEvent {
     row.execution_latency_estimate_ms !== undefined ||
     row.execution_observed_duration_ms !== undefined ||
     row.execution_circuit_breaker_state !== undefined;
+
+  const priceOutlier = row.price_outlier === 1 || row.price_outlier === true;
 
   return {
     id: String(row.id),
@@ -213,7 +216,10 @@ export function rowToUsageEvent(row: Record<string, unknown>): UsageEvent {
       ? (row.payment_source as UsageEvent["paymentSource"])
       : undefined,
     sponsorPublicKey: row.sponsor_public_key ? String(row.sponsor_public_key) : undefined,
-    errorCode: row.error_code ? (row.error_code as UsageEvent["errorCode"]) : undefined
+    priceOutlier: priceOutlier || undefined,
+    priceOutlierReason: row.price_outlier_reason
+      ? String(row.price_outlier_reason)
+      : undefined
   };
 }
 

@@ -82,7 +82,8 @@ export interface UsageEvent {
   policyDecision?: string;
   paymentSource?: PaymentSource;
   sponsorPublicKey?: string;
-  errorCode?: PaidRouteErrorCode;
+  priceOutlier?: boolean;
+  priceOutlierReason?: string;
 }
 
 export interface PaymentAttempt {
