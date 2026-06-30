@@ -1,11 +1,11 @@
 import type { ProviderDefinition, QueryMode, QueryResult } from "@query402/shared";
 
 export interface PaymentProofLinks {
-  transaction: string;
-  payer: string;
-  payTo: string;
+  transaction: string | "not_available";
+  payer: string | "not_available";
+  payTo: string | "not_available";
   network: string;
-  asset: string;
+  asset: string | "not_available";
 }
 
 export interface PaymentEvidenceSummary {

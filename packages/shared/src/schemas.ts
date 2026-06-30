@@ -107,3 +107,11 @@ export const sponsorshipPreviewResponseSchema = z.object({
   }),
   reason: z.string().optional()
 });
+
+export const paymentProofLinksSchema = z.object({
+  transaction: z.union([z.string().url(), z.literal("not_available")]),
+  payer: z.union([z.string().url(), z.literal("not_available")]),
+  payTo: z.union([z.string().url(), z.literal("not_available")]),
+  network: z.string(),
+  asset: z.union([z.string(), z.literal("not_available")])
+});

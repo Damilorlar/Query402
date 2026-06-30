@@ -20,6 +20,7 @@ const validProvider = {
   latencyEstimateMs: 700,
   qualityScore: 75,
   sourceType: "deterministic-fallback" as const,
+  provenance: "unknown" as const,
   enabled: true
 };
 
