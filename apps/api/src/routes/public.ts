@@ -2,10 +2,12 @@ import { Router } from "express";
 import { z } from "zod";
 import { providers } from "../lib/pricing.js";
 import { getAnalyticsSummary, getUsageEvents } from "../lib/persistence.js";
-import { config } from "../lib/config.js";
-import { apiVersion } from "../lib/build-metadata.js";
+import { config, getFacilitatorConfigured } from "../lib/config.js";
+import { apiVersion, buildMetadata } from "../lib/build-metadata.js";
 import { getCatalog } from "../services/query-service.js";
 import { MAX_USAGE_EVENTS } from "../lib/storage/constants.js";
+import { isStorageAvailable } from "../lib/storage/index.js";
+import { checkFacilitatorSupported } from "../lib/facilitator-check.js";
 
 export const publicRouter = Router();
 
@@ -29,6 +31,30 @@ publicRouter.get("/health", (_req, res) => {
     sponsorshipEnabled: config.sponsorshipEnabled,
     timestamp: new Date().toISOString(),
     uptimeSeconds: process.uptime()
+  });
+});
+
+publicRouter.get("/api/readiness", async (_req, res) => {
+  const facilitatorSupported = await checkFacilitatorSupported();
+
+  const providersByMode = {
+    live: providers.filter((p) => p.sourceType === "live").length,
+    fallback: providers.filter((p) => p.sourceType !== "live").length
+  };
+
+  res.json({
+    ok: true,
+    version: buildMetadata.version,
+    gitCommit: buildMetadata.gitCommit,
+    buildTime: buildMetadata.buildTime,
+    timestamp: new Date().toISOString(),
+    uptimeSeconds: process.uptime(),
+    demoMode: config.demoMode,
+    network: config.STELLAR_NETWORK,
+    facilitatorConfigured: getFacilitatorConfigured(),
+    facilitatorSupported: facilitatorSupported.ok,
+    providersByMode,
+    storageAvailable: isStorageAvailable()
   });
 });
 

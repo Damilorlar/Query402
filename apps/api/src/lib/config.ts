@@ -77,3 +77,7 @@ export const config = {
   analyticsDbPath: resolveApiDataPath(parsed.data.ANALYTICS_DB_PATH),
   analyticsStorage: parsed.data.ANALYTICS_STORAGE
 };
+
+export function getFacilitatorConfigured(): boolean {
+  return !!parsed.data.X402_FACILITATOR_URL && !!parsed.data.X402_FACILITATOR_API_KEY && parsed.data.X402_FACILITATOR_API_KEY.length > 0;
+}

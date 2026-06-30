@@ -48,6 +48,62 @@ describe("public routes", () => {
     }
   });
 
+  it("returns readiness metadata without sensitive values", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-21T10:00:00.000Z"));
+
+    try {
+      const app = await createPublicApp();
+      const response = await request(app).get("/api/readiness");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toMatchObject({
+        ok: true,
+        version: "0.1.0",
+        timestamp: "2026-06-21T10:00:00.000Z",
+        demoMode: true,
+        network: "stellar:testnet",
+        facilitatorConfigured: false,
+        facilitatorSupported: false,
+        storageAvailable: true
+      });
+      expect(typeof response.body.uptimeSeconds).toBe("number");
+      expect(response.body.uptimeSeconds).toBeGreaterThanOrEqual(0);
+      expect(response.body.providersByMode).toMatchObject({
+        live: 1,
+        fallback: 7
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not expose secret config values in readiness response", async () => {
+    const app = await createPublicApp();
+    const response = await request(app).get("/api/readiness");
+
+    expect(response.status).toBe(200);
+    
+    const bodyStr = JSON.stringify(response.body);
+    expect(bodyStr).not.toContain("API_KEY");
+    expect(bodyStr).not.toContain("SECRET");
+    expect(bodyStr).not.toContain("PRIVATE");
+    expect(bodyStr).not.toContain("BEARER");
+    expect(bodyStr).not.toContain("token");
+    expect(bodyStr).not.toMatch(/[A-Za-z0-9]{56}/);
+  });
+
+  it("returns readiness endpoint working in demo mode without live facilitator credentials", async () => {
+    const app = await createPublicApp();
+
+    const response = await request(app).get("/api/readiness");
+
+    expect(response.status).toBe(200);
+    expect(response.body.demoMode).toBe(true);
+    expect(response.body.facilitatorConfigured).toBe(false);
+    expect(response.body.facilitatorSupported).toBe(false);
+  });
+
   it("returns provider catalog and category groupings", async () => {
     const app = await createPublicApp();
 
