@@ -71,7 +71,7 @@ describe("public routes", () => {
       expect(response.body.uptimeSeconds).toBeGreaterThanOrEqual(0);
       expect(response.body.providersByMode).toMatchObject({
         live: 1,
-        fallback: 7
+        fallback: 6
       });
     } finally {
       vi.useRealTimers();

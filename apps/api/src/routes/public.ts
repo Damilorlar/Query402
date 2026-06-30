@@ -30,8 +30,7 @@ publicRouter.get("/health", (_req, res) => {
     network: config.STELLAR_NETWORK,
     sponsorshipEnabled: config.sponsorshipEnabled,
     timestamp: new Date().toISOString(),
-    uptimeSeconds: process.uptime(),
-    diagnostics: getConfigSnapshot()
+    uptimeSeconds: process.uptime()
   });
 });
 
