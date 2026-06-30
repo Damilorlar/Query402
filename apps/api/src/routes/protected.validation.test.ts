@@ -305,7 +305,9 @@ describe("x402 payment debug metadata - demo mode", () => {
 
     expect(response.status).toBe(402);
     expect(JSON.stringify(response.body)).not.toContain("secret-token-12345");
-    expect(JSON.stringify(response.body)).not.toContain("eyJhbGciOiJIUzI1NiJ9.eyJwYXllciI6InRlc3QifQ.signature");
+    expect(JSON.stringify(response.body)).not.toContain(
+      "eyJhbGciOiJIUzI1NiJ9.eyJwYXllciI6InRlc3QifQ.signature"
+    );
     expect(JSON.stringify(response.body)).not.toContain("Bearer");
   });
 });
@@ -319,7 +321,12 @@ describe("x402 payment debug metadata - middleware wrapper behavior", () => {
     app.use((req, res) => {
       const originalJson = res.json.bind(res);
       res.json = function (body: unknown) {
-        if (res.statusCode === 402 && body && typeof body === "object" && !("debug" in (body as Record<string, unknown>))) {
+        if (
+          res.statusCode === 402 &&
+          body &&
+          typeof body === "object" &&
+          !("debug" in (body as Record<string, unknown>))
+        ) {
           const debug = buildPaymentDebugMetadata({
             failureType: "payment_required",
             route: req.path,
@@ -378,7 +385,12 @@ describe("x402 payment debug metadata - middleware wrapper behavior", () => {
     app.use((req, res) => {
       const originalJson = res.json.bind(res);
       res.json = function (body: unknown) {
-        if (res.statusCode === 402 && body && typeof body === "object" && !("debug" in (body as Record<string, unknown>))) {
+        if (
+          res.statusCode === 402 &&
+          body &&
+          typeof body === "object" &&
+          !("debug" in (body as Record<string, unknown>))
+        ) {
           const debug = buildPaymentDebugMetadata({
             failureType: "payment_required",
             route: req.path,
