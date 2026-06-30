@@ -1,21 +1,37 @@
-import type { AnalyticsSummary, LatencyBucket, PaymentAttempt, QueryMode, UsageEvent } from "@query402/shared";
+import type {
+  AnalyticsSummary,
+  ExecutionFallbackReason,
+  PaymentAttempt,
+  QueryMode,
+  UsageEvent
+} from "@query402/shared";
 import { DEFAULT_RECENT_LIMIT } from "./constants.js";
 import type { AnalyticsQueryOptions } from "./types.js";
+
+type UsageExecution = NonNullable<UsageEvent["execution"]>;
 
 function emptySpendByCategory(): Record<QueryMode, number> {
   return { search: 0, news: 0, scrape: 0 };
 }
 
-function emptyLatencyBuckets(): Record<LatencyBucket, number> {
-  return { "<1s": 0, "1-3s": 0, "3-10s": 0, ">10s": 0, unknown: 0 };
-}
-
-function classifyLatency(latencyMs: number): LatencyBucket {
-  if (latencyMs <= 0) return "unknown";
-  if (latencyMs < 1000) return "<1s";
-  if (latencyMs < 3000) return "1-3s";
-  if (latencyMs < 10000) return "3-10s";
-  return ">10s";
+function emptyExecutionSummary(): NonNullable<AnalyticsSummary["executionSummary"]> {
+  return {
+    totalExecutions: 0,
+    liveExecutions: 0,
+    fallbackExecutions: 0,
+    unavailableExecutions: 0,
+    timeoutExecutions: 0,
+    circuitOpenExecutions: 0,
+    fallbackByCategory: emptySpendByCategory(),
+    fallbackReasonCounts: {
+      timeout: 0,
+      "circuit-open": 0,
+      unhealthy: 0,
+      "adapter-error": 0,
+      "deterministic-provider": 0,
+      "missing-fallback": 0
+    }
+  };
 }
 
 export function buildAnalyticsSummary(
@@ -62,11 +78,39 @@ export function buildAnalyticsSummary(
     (spendByCategory.search + spendByCategory.news + spendByCategory.scrape).toFixed(6)
   );
 
-  const latencyBuckets = usage.reduce<Record<LatencyBucket, number>>((acc, event) => {
-    const bucket = classifyLatency(event.latencyMs);
-    acc[bucket] += 1;
-    return acc;
-  }, emptyLatencyBuckets());
+  const executionSummary = usage.reduce<NonNullable<AnalyticsSummary["executionSummary"]>>(
+    (acc, event) => {
+      const execution = event.execution;
+      if (!execution) {
+        return acc;
+      }
+
+      acc.totalExecutions += 1;
+      if (execution.source === "live") {
+        acc.liveExecutions += 1;
+      } else {
+        acc.fallbackExecutions += 1;
+        acc.fallbackByCategory[event.mode] += 1;
+        const fallbackReason = execution.fallbackReason ?? "adapter-error";
+        acc.fallbackReasonCounts[fallbackReason] += 1;
+
+        if (execution.source === "unavailable") {
+          acc.unavailableExecutions += 1;
+        }
+      }
+
+      if (execution.fallbackReason === "timeout") {
+        acc.timeoutExecutions += 1;
+      }
+
+      if (execution.circuitBreakerState === "open") {
+        acc.circuitOpenExecutions += 1;
+      }
+
+      return acc;
+    },
+    emptyExecutionSummary()
+  );
 
   const recentUsageLimit = options?.recentUsageLimit ?? DEFAULT_RECENT_LIMIT;
   const recentPaymentLimit = options?.recentPaymentLimit ?? DEFAULT_RECENT_LIMIT;
@@ -80,7 +124,7 @@ export function buildAnalyticsSummary(
     spendByCategory,
     settledSpendByCategory,
     demoSpendByCategory,
-    latencyBuckets,
+    executionSummary,
     recentTransactions: payments.slice(0, recentPaymentLimit),
     recentUsage: usage.slice(0, recentUsageLimit)
   };
@@ -106,6 +150,12 @@ export function usageEventToRow(event: UsageEvent) {
     trace_id: event.traceId,
     created_at: event.createdAt,
     latency_ms: event.latencyMs,
+    execution_source: event.execution?.source ?? null,
+    execution_used_fallback: event.execution?.usedFallback ? 1 : 0,
+    execution_fallback_reason: event.execution?.fallbackReason ?? null,
+    execution_latency_estimate_ms: event.execution?.latencyEstimateMs ?? null,
+    execution_observed_duration_ms: event.execution?.observedDurationMs ?? null,
+    execution_circuit_breaker_state: event.execution?.circuitBreakerState ?? null,
     sponsorship_grant_id: event.sponsorshipGrantId ?? null,
     policy_decision: event.policyDecision ?? null,
     payment_source: event.paymentSource ?? null,
@@ -114,6 +164,14 @@ export function usageEventToRow(event: UsageEvent) {
 }
 
 export function rowToUsageEvent(row: Record<string, unknown>): UsageEvent {
+  const hasExecutionMetadata =
+    row.execution_source !== undefined ||
+    row.execution_used_fallback !== undefined ||
+    row.execution_fallback_reason !== undefined ||
+    row.execution_latency_estimate_ms !== undefined ||
+    row.execution_observed_duration_ms !== undefined ||
+    row.execution_circuit_breaker_state !== undefined;
+
   return {
     id: String(row.id),
     mode: row.mode as QueryMode,
@@ -133,6 +191,21 @@ export function rowToUsageEvent(row: Record<string, unknown>): UsageEvent {
     traceId: String(row.trace_id),
     createdAt: String(row.created_at),
     latencyMs: Number(row.latency_ms),
+    execution: hasExecutionMetadata
+      ? {
+          providerId: String(row.provider_id),
+          source: (row.execution_source ?? "unavailable") as UsageExecution["source"],
+          usedFallback: Boolean(row.execution_used_fallback),
+          fallbackReason: row.execution_fallback_reason
+            ? (row.execution_fallback_reason as ExecutionFallbackReason)
+            : undefined,
+          latencyEstimateMs: Number(row.execution_latency_estimate_ms ?? row.latency_ms),
+          observedDurationMs: Number(row.execution_observed_duration_ms ?? row.latency_ms),
+          circuitBreakerState: row.execution_circuit_breaker_state
+            ? (row.execution_circuit_breaker_state as UsageExecution["circuitBreakerState"])
+            : undefined
+        }
+      : undefined,
     sponsorshipGrantId: row.sponsorship_grant_id ? String(row.sponsorship_grant_id) : undefined,
     policyDecision: row.policy_decision ? String(row.policy_decision) : undefined,
     paymentSource: row.payment_source
