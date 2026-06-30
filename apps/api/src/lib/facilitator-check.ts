@@ -14,7 +14,7 @@ const CACHE_TTL_MS = 30_000;
 
 export async function checkFacilitatorSupported(): Promise<FacilitatorCheckResult> {
   const now = Date.now();
-  
+
   if (cachedResult && now - cachedAt < CACHE_TTL_MS) {
     return cachedResult;
   }
@@ -30,7 +30,7 @@ export async function checkFacilitatorSupported(): Promise<FacilitatorCheckResul
   }
 
   pendingCheck = performCheck();
-  
+
   try {
     cachedResult = await pendingCheck;
     cachedAt = now;

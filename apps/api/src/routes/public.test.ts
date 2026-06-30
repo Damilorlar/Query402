@@ -83,7 +83,7 @@ describe("public routes", () => {
     const response = await request(app).get("/api/readiness");
 
     expect(response.status).toBe(200);
-    
+
     const bodyStr = JSON.stringify(response.body);
     expect(bodyStr).not.toContain("API_KEY");
     expect(bodyStr).not.toContain("SECRET");
