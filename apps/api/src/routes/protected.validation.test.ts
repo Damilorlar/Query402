@@ -55,23 +55,36 @@ describe("protected route validation and error handling", () => {
     const { protectedRouter } = await import("../routes/protected.js");
     const { UnsafeScrapeUrlError } = await import("../lib/scrape-url-safety.js");
     const { PaymentEvidenceError } = await import("../lib/payment-evidence.js");
-    const { ProviderTimeoutError, ProviderFailedError } = await import("../services/query-service.js");
+    const { ProviderTimeoutError, ProviderFailedError } =
+      await import("../services/query-service.js");
     const app = express();
     app.use(protectedRouter);
     app.use((error: any, _req: any, res: any, _next: any) => {
       if (error instanceof UnsafeScrapeUrlError) {
-        return res.status(400).json({ error: error.message, type: "unsafe_scrape_url", errorCode: "invalid_query" });
+        return res
+          .status(400)
+          .json({ error: error.message, type: "unsafe_scrape_url", errorCode: "invalid_query" });
       }
       if (error instanceof PaymentEvidenceError) {
-        return res.status(400).json({ error: error.message, type: "payment_evidence_error", errorCode: "payment_invalid" });
+        return res.status(400).json({
+          error: error.message,
+          type: "payment_evidence_error",
+          errorCode: "payment_invalid"
+        });
       }
       if (error instanceof ProviderTimeoutError) {
-        return res.status(504).json({ error: error.message, type: "provider_timeout", errorCode: "provider_timeout" });
+        return res
+          .status(504)
+          .json({ error: error.message, type: "provider_timeout", errorCode: "provider_timeout" });
       }
       if (error instanceof ProviderFailedError) {
-        return res.status(502).json({ error: error.message, type: "provider_failed", errorCode: "provider_failed" });
+        return res
+          .status(502)
+          .json({ error: error.message, type: "provider_failed", errorCode: "provider_failed" });
       }
-      return res.status(500).json({ error: error.message, type: "internal_error", errorCode: "internal_error" });
+      return res
+        .status(500)
+        .json({ error: error.message, type: "internal_error", errorCode: "internal_error" });
     });
     return app;
   }

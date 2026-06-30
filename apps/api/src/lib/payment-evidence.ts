@@ -371,7 +371,6 @@ export async function persistPaymentEvidence(
       facilitatorUrl: evidence.facilitatorUrl,
       payerPublicKey: evidence.payer,
       traceId: record.traceId,
-      errorCode: evidence.kind === "failed" ? "payment_invalid" : undefined,
       createdAt: now,
       latencyMs: record.latencyMs
     };
