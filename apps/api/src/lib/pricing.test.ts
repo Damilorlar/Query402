@@ -23,6 +23,12 @@ describe("provider pricing", () => {
     expect(providers.length).toBeGreaterThanOrEqual(7);
   });
 
+  it("all providers have a valid provenance", () => {
+    for (const provider of providers) {
+      expect(["mock", "fallback", "live", "unknown"]).toContain(provider.provenance);
+    }
+  });
+
   it("returns provider-specific prices for search, news, and scrape", () => {
     expect(getProviderById("search.basic")?.priceUsd).toBe(0.01);
     expect(getProviderById("search.pro")?.priceUsd).toBe(0.02);
@@ -58,6 +64,7 @@ describe("provider catalog baseline", () => {
     priceUsd: number;
     enabled: boolean;
     sourceType: string;
+    provenance: string;
   }
 
   // These are the canonical baseline providers the demo and SCF pitch depend on.
@@ -69,21 +76,24 @@ describe("provider catalog baseline", () => {
       category: "search",
       priceUsd: 0.01,
       enabled: true,
-      sourceType: "deterministic-fallback"
+      sourceType: "deterministic-fallback",
+      provenance: "mock"
     },
     {
       id: "news.fast",
       category: "news",
       priceUsd: 0.015,
       enabled: true,
-      sourceType: "deterministic-fallback"
+      sourceType: "deterministic-fallback",
+      provenance: "mock"
     },
     {
       id: "scrape.page",
       category: "scrape",
       priceUsd: 0.02,
       enabled: true,
-      sourceType: "deterministic-fallback"
+      sourceType: "deterministic-fallback",
+      provenance: "mock"
     }
   ];
 
@@ -101,6 +111,7 @@ describe("provider catalog baseline", () => {
       expect(actual!.priceUsd, `${rowLabel} priceUsd mismatch`).toBe(expected.priceUsd);
       expect(actual!.enabled, `${rowLabel} enabled mismatch`).toBe(expected.enabled);
       expect(actual!.sourceType, `${rowLabel} sourceType mismatch`).toBe(expected.sourceType);
+      expect(actual!.provenance, `${rowLabel} provenance mismatch`).toBe(expected.provenance);
     });
   }
 });

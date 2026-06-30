@@ -10,6 +10,7 @@ export const providers: ProviderDefinition[] = [
     latencyEstimateMs: 1500,
     qualityScore: 99,
     sourceType: "live",
+    provenance: "live",
     enabled: true
   },
   {
@@ -21,6 +22,7 @@ export const providers: ProviderDefinition[] = [
     latencyEstimateMs: 700,
     qualityScore: 75,
     sourceType: "deterministic-fallback",
+    provenance: "mock",
     enabled: true
   },
   {
@@ -32,6 +34,7 @@ export const providers: ProviderDefinition[] = [
     latencyEstimateMs: 1100,
     qualityScore: 90,
     sourceType: "deterministic-fallback",
+    provenance: "mock",
     enabled: true
   },
   {
@@ -43,6 +46,7 @@ export const providers: ProviderDefinition[] = [
     latencyEstimateMs: 800,
     qualityScore: 72,
     sourceType: "deterministic-fallback",
+    provenance: "mock",
     enabled: true
   },
   {
@@ -54,6 +58,7 @@ export const providers: ProviderDefinition[] = [
     latencyEstimateMs: 1400,
     qualityScore: 93,
     sourceType: "deterministic-fallback",
+    provenance: "mock",
     enabled: true
   },
   {
@@ -65,6 +70,7 @@ export const providers: ProviderDefinition[] = [
     latencyEstimateMs: 1000,
     qualityScore: 70,
     sourceType: "deterministic-fallback",
+    provenance: "mock",
     enabled: true
   },
   {
@@ -76,6 +82,7 @@ export const providers: ProviderDefinition[] = [
     latencyEstimateMs: 1700,
     qualityScore: 95,
     sourceType: "deterministic-fallback",
+    provenance: "mock",
     enabled: true
   }
 ];

@@ -699,6 +699,26 @@ body {
   padding: 0.2rem 0.45rem;
 }
 
+.provenance-badge.mock {
+  border-color: rgba(250, 204, 21, 0.5);
+  color: #facc15;
+}
+
+.provenance-badge.fallback {
+  border-color: rgba(251, 146, 60, 0.5);
+  color: #fb923c;
+}
+
+.provenance-badge.live {
+  border-color: rgba(74, 222, 128, 0.5);
+  color: #4ade80;
+}
+
+.provenance-badge.unknown {
+  border-color: rgba(148, 163, 184, 0.5);
+  color: #94a3b8;
+}
+
 .action-row {
   border: 1px dashed rgba(130, 159, 199, 0.34);
   border-radius: 14px;

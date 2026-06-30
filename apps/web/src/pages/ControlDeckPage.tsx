@@ -428,6 +428,9 @@ export default function ControlDeckPage() {
                     <span className={`source-badge ${provider.sourceType}`}>
                       {provider.sourceType}
                     </span>
+                    <span className={`provenance-badge ${provider.provenance}`}>
+                      {provider.provenance}
+                    </span>
                   </div>
                 </button>
               ))

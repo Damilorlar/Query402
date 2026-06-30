@@ -202,6 +202,43 @@ describe("public routes", () => {
     expect(catalogResponse.body.byCategory.scrape.length).toBeGreaterThan(0);
   });
 
+  it("every provider in catalog and providers endpoint includes provenance", async () => {
+    const app = await createPublicApp();
+
+    const providersResponse = await request(app).get("/api/providers");
+    const catalogResponse = await request(app).get("/api/catalog");
+
+    const allProviders = [
+      ...providersResponse.body.providers,
+      ...catalogResponse.body.providers,
+      ...catalogResponse.body.byCategory.search,
+      ...catalogResponse.body.byCategory.news,
+      ...catalogResponse.body.byCategory.scrape
+    ];
+
+    for (const provider of allProviders) {
+      expect(provider).toHaveProperty("provenance");
+      expect(["mock", "fallback", "live", "unknown"]).toContain(provider.provenance);
+    }
+  });
+
+  it("live provider has provenance live and mock providers have provenance mock", async () => {
+    const app = await createPublicApp();
+
+    const providersResponse = await request(app).get("/api/providers");
+    const providersList = providersResponse.body.providers;
+
+    const live = providersList.find((p: { id: string }) => p.id === "search.live");
+    expect(live).toBeDefined();
+    expect(live.provenance).toBe("live");
+
+    for (const p of providersList) {
+      if (p.id !== "search.live") {
+        expect(p.provenance).toBe("mock");
+      }
+    }
+  });
+
   it("returns safe default analytics shape for fresh storage", async () => {
     const app = await createPublicApp();
 
