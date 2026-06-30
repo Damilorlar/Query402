@@ -34,7 +34,7 @@ const envSchema = z.object({
   STELLAR_RPC_URL: z.string().url().default("https://soroban-testnet.stellar.org"),
   X402_FACILITATOR_URL: z.string().url().default("https://channels.openzeppelin.com/x402/testnet"),
   X402_FACILITATOR_API_KEY: z.string().optional(),
-  X402_PAY_TO_ADDRESS: z.string().min(10, "X402_PAY_TO_ADDRESS is required"),
+  X402_PAY_TO_ADDRESS: z.string().min(10, "X402_PAY_TO_ADDRESS is required").optional(),
   API_BASE_URL: z.string().url().default("http://localhost:3001"),
   CORS_ORIGINS: z.string().optional(),
   DEMO_CLIENT_SECRET_KEY: z.string().optional(),
@@ -93,6 +93,8 @@ export interface ConfigSnapshot {
   facilitatorApiKeyConfigured: boolean;
   /** Whether a pay-to Stellar address is configured */
   payToConfigured: boolean;
+  /** The configured pay-to Stellar public address if available */
+  payToAddress?: string;
   /** Whether sponsorship/subsidy mode is enabled */
   sponsorshipEnabled: boolean;
   /** Whether a sponsorship signing secret is configured (value never exposed) */
@@ -112,6 +114,7 @@ export function getConfigSnapshot(): ConfigSnapshot {
     facilitatorConfigured: Boolean(config.X402_FACILITATOR_URL),
     facilitatorApiKeyConfigured: Boolean(config.X402_FACILITATOR_API_KEY),
     payToConfigured: Boolean(config.X402_PAY_TO_ADDRESS),
+    payToAddress: config.X402_PAY_TO_ADDRESS,
     sponsorshipEnabled: config.sponsorshipEnabled,
     sponsorshipSigningSecretConfigured: Boolean(config.SPONSORSHIP_SIGNING_SECRET),
     anyProviderKeyConfigured: Boolean(

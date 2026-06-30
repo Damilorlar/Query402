@@ -6,8 +6,8 @@ import { buildTestPaymentAttempt, buildTestUsageEvent } from "../../test/storage
 
 describe("storage paths", () => {
   it("resolves relative data paths from the API package root", () => {
-    expect(resolveApiDataPath("data/analytics.db")).toMatch(/apps\/api\/data\/analytics\.db$/);
-    expect(resolveApiDataPath("data/analytics.db")).not.toContain("/src/data/");
+    expect(resolveApiDataPath("data/analytics.db").replace(/\\/g, "/")).toMatch(/apps\/api\/data\/analytics\.db$/);
+    expect(resolveApiDataPath("data/analytics.db").replace(/\\/g, "/")).not.toContain("/src/data/");
   });
 });
 

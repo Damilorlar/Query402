@@ -5,7 +5,7 @@ import { resolve } from "path";
 
 const execAsync = promisify(exec);
 // Workaround for Windows cross-platform testing
-const tsx = process.platform === "win32" ? "npx.cmd tsx" : "npx tsx";
+const tsx = process.platform === "win32" ? "npx.cmd --yes tsx" : "npx --yes tsx";
 const cliPath = resolve(__dirname, "cli.ts");
 
 describe("CLI Validation", () => {

@@ -78,6 +78,29 @@ describe("public routes", () => {
     expect(response.body.diagnostics.payToConfigured).toBe(true); // TEST_WALLET is set by applySponsorshipTestEnv
   });
 
+  it("health diagnostics exposes payToAddress when configured", async () => {
+    applyApiTestEnv({ X402_PAY_TO_ADDRESS: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF" });
+    const app = await createPublicApp();
+    const response = await request(app).get("/health");
+
+    expect(response.status).toBe(200);
+    expect(response.body.diagnostics.payToConfigured).toBe(true);
+    expect(response.body.diagnostics.payToAddress).toBe("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF");
+  });
+
+  it("health diagnostics handles missing/empty payToAddress safely", async () => {
+    delete process.env.X402_PAY_TO_ADDRESS;
+    applyApiTestEnv({ X402_PAY_TO_ADDRESS: "" });
+    delete process.env.X402_PAY_TO_ADDRESS;
+
+    const app = await createPublicApp();
+    const response = await request(app).get("/health");
+
+    expect(response.status).toBe(200);
+    expect(response.body.diagnostics.payToConfigured).toBe(false);
+    expect(response.body.diagnostics.payToAddress).toBeUndefined();
+  });
+
   describe("health diagnostics — secret redaction", () => {
     it("never exposes raw secret values in health response body", async () => {
       // Set all secret-like env vars to recognisable sentinel values,

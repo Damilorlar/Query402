@@ -295,7 +295,7 @@ export function buildDemoPaymentEvidence(req: Request): DemoPaymentEvidence {
     providerId,
     amountUsd,
     network: config.STELLAR_NETWORK,
-    payTo: config.X402_PAY_TO_ADDRESS,
+    payTo: config.X402_PAY_TO_ADDRESS ?? "",
     facilitatorUrl: config.X402_FACILITATOR_URL,
     payer: req.header("x-demo-payer") ?? "demo-agent"
   };

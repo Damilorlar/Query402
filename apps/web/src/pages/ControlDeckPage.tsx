@@ -12,7 +12,10 @@ import {
   ShieldCheck,
   Sparkles,
   TerminalSquare,
-  XCircle
+  XCircle,
+  Copy,
+  Check,
+  AlertTriangle
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { AnalyticsResponse, PaidQueryResponse } from "../types.js";
@@ -45,6 +48,64 @@ function toTokenBaseUnits(amountUsd: number) {
   return normalizedAmount.replace(".", "").replace(/^0+/, "") || "0";
 }
 
+function PayToAddressDisplay({
+  address,
+  network,
+  configured
+}: {
+  address?: string;
+  network?: string;
+  configured?: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    if (!address) return;
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy address", err);
+    }
+  };
+
+  const isTestnet =
+    network?.toLowerCase().includes("testnet") ||
+    network?.toLowerCase().includes("test sdf network") ||
+    network?.toLowerCase().includes("september 2015");
+
+  if (!configured || !address) {
+    return (
+      <span className="pay-to-warning-badge" title="No payout address configured!">
+        <AlertTriangle size={13} style={{ display: "inline-block", marginRight: "4px", verticalAlign: "-2px" }} />
+        Missing pay-to address
+      </span>
+    );
+  }
+
+  return (
+    <span className="pay-to-info-wrapper">
+      <strong className="pay-to-address-text" title={address}>
+        {address.slice(0, 6)}...{address.slice(-6)}
+      </strong>
+      {isTestnet && <span className="pay-to-network-badge">Testnet</span>}
+      <button
+        onClick={handleCopy}
+        className="pay-to-copy-button"
+        title="Copy full public address"
+        type="button"
+      >
+        {copied ? (
+          <Check size={11} className="copy-icon success" style={{ color: "#37e0af" }} />
+        ) : (
+          <Copy size={11} className="copy-icon" />
+        )}
+      </button>
+    </span>
+  );
+}
+
 export default function ControlDeckPage() {
   const [mode, setMode] = useState<QueryMode>("search");
   const [paymentMode, setPaymentMode] = useState<"wallet" | "sponsored">("wallet");
@@ -69,6 +130,7 @@ export default function ControlDeckPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sponsorshipEnabled, setSponsorshipEnabled] = useState(false);
+  const [healthDiagnostics, setHealthDiagnostics] = useState<{ network?: string; payToConfigured?: boolean; payToAddress?: string } | null>(null);
   const [preview, setPreview] = useState<SponsorshipPreview | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
@@ -127,13 +189,28 @@ export default function ControlDeckPage() {
 
   useEffect(() => {
     async function bootstrap() {
-      const [providersResponse, sponsorshipActive] = await Promise.all([
+      const [providersResponse, healthResponse] = await Promise.all([
         fetchJson<{ providers: ProviderDefinition[] }>(`${API_BASE_URL}/api/providers`),
-        fetchSponsorshipEnabled(API_BASE_URL)
+        fetchJson<{
+          sponsorshipEnabled?: boolean;
+          network?: string;
+          diagnostics?: {
+            network: string;
+            demoMode: boolean;
+            payToConfigured: boolean;
+            payToAddress?: string;
+            sponsorshipEnabled: boolean;
+          };
+        }>(`${API_BASE_URL}/health`)
       ]);
       setProviders(providersResponse.providers);
       setSelectedProvider(modeDefaultProvider.search);
-      setSponsorshipEnabled(sponsorshipActive);
+      setSponsorshipEnabled(healthResponse.sponsorshipEnabled === true);
+      setHealthDiagnostics({
+        network: healthResponse.network ?? healthResponse.diagnostics?.network,
+        payToConfigured: healthResponse.diagnostics?.payToConfigured ?? false,
+        payToAddress: healthResponse.diagnostics?.payToAddress
+      });
       await refreshMetrics();
     }
 
@@ -455,7 +532,12 @@ export default function ControlDeckPage() {
                 units)
               </p>
               <p className="action-label">
-                Pay-to: <strong>dynamic via x402</strong>
+                Pay-to:{" "}
+                <PayToAddressDisplay
+                  address={healthDiagnostics?.payToAddress}
+                  network={healthDiagnostics?.network}
+                  configured={healthDiagnostics?.payToConfigured}
+                />
               </p>
             </div>
             <button
@@ -518,6 +600,14 @@ export default function ControlDeckPage() {
                 <div className="trace-box">
                   <p>payment-response: {result.payment.paymentResponseHeader ?? "<none>"}</p>
                   <p>network: {result.payment.network}</p>
+                  <p style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                    pay-to:{" "}
+                    <PayToAddressDisplay
+                      address={result.payment.evidence?.payTo}
+                      network={result.payment.network}
+                      configured={!!result.payment.evidence?.payTo && result.payment.evidence.payTo !== "not_available"}
+                    />
+                  </p>
                   {result.payment.evidence?.proofLinks && (
                     <div className="proof-links">
                       <p>

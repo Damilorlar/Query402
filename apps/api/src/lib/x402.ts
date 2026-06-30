@@ -105,7 +105,7 @@ function demoMode402Middleware(req: Request, res: Response, next: NextFunction) 
       scheme: "exact",
       network: config.STELLAR_NETWORK,
       price,
-      payTo: config.X402_PAY_TO_ADDRESS,
+      payTo: config.X402_PAY_TO_ADDRESS ?? "",
       facilitator: config.X402_FACILITATOR_URL
     },
     instructions:
@@ -184,7 +184,7 @@ export function createX402Middleware() {
         scheme: "exact",
         network,
         price: (context: HTTPRequestContext) => resolveRoutePrice(context, "search"),
-        payTo: config.X402_PAY_TO_ADDRESS
+        payTo: config.X402_PAY_TO_ADDRESS ?? ""
       },
       description: "Paid search endpoint on Query402",
       settlementFailedResponseBody
@@ -194,7 +194,7 @@ export function createX402Middleware() {
         scheme: "exact",
         network,
         price: (context: HTTPRequestContext) => resolveRoutePrice(context, "news"),
-        payTo: config.X402_PAY_TO_ADDRESS
+        payTo: config.X402_PAY_TO_ADDRESS ?? ""
       },
       description: "Paid news endpoint on Query402",
       settlementFailedResponseBody
@@ -204,7 +204,7 @@ export function createX402Middleware() {
         scheme: "exact",
         network,
         price: (context: HTTPRequestContext) => resolveRoutePrice(context, "scrape"),
-        payTo: config.X402_PAY_TO_ADDRESS
+        payTo: config.X402_PAY_TO_ADDRESS ?? ""
       },
       description: "Paid scrape endpoint on Query402",
       settlementFailedResponseBody
