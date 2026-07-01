@@ -1,6 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { AnalyticsSummary, PaymentAttempt, UsageEvent } from "@query402/shared";
+import type {
+  AnalyticsSummary,
+  PaymentAttempt,
+  UsageEvent,
+  PrivacySafeAnalyticsResponse,
+  DetailedAnalyticsResponse
+} from "@query402/shared";
+import { getPublicAnalytics, getDetailedAnalytics, getAnalyticsConfig } from "./analytics-service.js";
 
 interface PersistedDb {
   usage: UsageEvent[];
@@ -72,4 +79,27 @@ export function getAnalyticsSummary(): AnalyticsSummary {
     recentTransactions: db.payments.slice(0, 10),
     recentUsage: db.usage.slice(0, 10)
   };
+}
+
+/**
+ * Get public analytics - privacy-safe, paginated, no sensitive data
+ */
+export function getPublicAnalyticsData(
+  cursor?: string,
+  limit?: number
+): PrivacySafeAnalyticsResponse {
+  const db = readDb();
+  return getPublicAnalytics(db.usage, db.payments, { cursor, limit });
+}
+
+/**
+ * Get detailed analytics - for authorized endpoints only
+ * Still redacts sensitive fields but includes more data
+ */
+export function getDetailedAnalyticsData(
+  cursor?: string,
+  limit?: number
+): DetailedAnalyticsResponse {
+  const db = readDb();
+  return getDetailedAnalytics(db.usage, db.payments, { cursor, limit });
 }

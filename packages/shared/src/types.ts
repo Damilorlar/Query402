@@ -73,3 +73,133 @@ export interface AnalyticsSummary {
   recentTransactions: PaymentAttempt[];
   recentUsage: UsageEvent[];
 }
+
+// Privacy-safe analytics types
+
+/**
+ * Aggregated metrics separated by demo and settlement status
+ */
+export interface SettlementMetrics {
+  count: number;
+  volumeUsd: number;
+}
+
+export interface CategoryMetrics {
+  search: SettlementMetrics;
+  news: SettlementMetrics;
+  scrape: SettlementMetrics;
+}
+
+/**
+ * Public analytics aggregation - privacy-safe, no raw queries/URLs/payer data
+ */
+export interface PrivacySafeAnalyticsAggregation {
+  /** Demo-paid queries without settlement */
+  demoPaid: {
+    totalCount: number;
+    totalVolumeUsd: number;
+    byCategory: CategoryMetrics;
+  };
+  /** Verified payments - on-chain record exists */
+  verified: {
+    totalCount: number;
+    totalVolumeUsd: number;
+    byCategory: CategoryMetrics;
+  };
+  /** Settled payments - fully confirmed on-chain */
+  settled: {
+    totalCount: number;
+    totalVolumeUsd: number;
+    byCategory: CategoryMetrics;
+  };
+  /** Failed payment attempts */
+  failed: {
+    totalCount: number;
+    totalVolumeUsd: number;
+    byCategory: CategoryMetrics;
+  };
+}
+
+/**
+ * Redacted usage record for public analytics endpoints
+ * No raw query text, URLs, or full payer addresses
+ */
+export interface PrivacySafeUsageRecord {
+  id: string;
+  mode: QueryMode;
+  endpoint: string;
+  providerId: string;
+  priceUsd: number;
+  paymentStatus: "demo-paid" | "paid" | "failed";
+  createdAt: string;
+  latencyMs: number;
+  traceId: string;
+  /** Hashed payer identifier (redacted in public endpoint) */
+  payerHash?: string;
+}
+
+/**
+ * Cursor-based pagination parameters
+ */
+export interface CursorPaginationParams {
+  cursor?: string;
+  limit: number;
+}
+
+/**
+ * Cursor-based pagination metadata
+ */
+export interface CursorPaginationMeta {
+  cursor: string;
+  limit: number;
+  hasMore: boolean;
+  nextCursor?: string;
+}
+
+/**
+ * Public analytics endpoint response - paginated, redacted
+ */
+export interface PrivacySafeAnalyticsResponse {
+  aggregation: PrivacySafeAnalyticsAggregation;
+  recentRecords: PrivacySafeUsageRecord[];
+  pagination: CursorPaginationMeta;
+}
+
+/**
+ * Detailed analytics for authorized access
+ * Still redacts sensitive fields but includes more data
+ */
+export interface DetailedAnalyticsRecord {
+  id: string;
+  mode: QueryMode;
+  endpoint: string;
+  providerId: string;
+  priceUsd: number;
+  paymentStatus: "demo-paid" | "paid" | "failed";
+  paymentTxHash?: string;
+  payerKeyHash?: string;
+  createdAt: string;
+  latencyMs: number;
+  traceId: string;
+}
+
+/**
+ * Detailed analytics response for private/authorized endpoints
+ */
+export interface DetailedAnalyticsResponse {
+  aggregation: PrivacySafeAnalyticsAggregation;
+  records: DetailedAnalyticsRecord[];
+  pagination: CursorPaginationMeta;
+}
+
+/**
+ * Analytics configuration
+ */
+export interface AnalyticsConfig {
+  /** Retention days for sensitive fields (queryOrUrl, payerPublicKey) */
+  retentionDays: number;
+  /** Maximum records per page */
+  maxPageLimit: number;
+  /** Default page limit */
+  defaultPageLimit: number;
+}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import type { ProviderDefinition, QueryMode } from "@query402/shared";
-import { Activity, CircleDollarSign, Gauge, Home, Radar, ReceiptText, Sparkles, TerminalSquare } from "lucide-react";
+import type { ProviderDefinition, QueryMode, PrivacySafeAnalyticsResponse } from "@query402/shared";
+import { Activity, CircleDollarSign, Gauge, Home, Radar, ReceiptText, Sparkles, TerminalSquare, TrendingUp, AlertCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { AnalyticsResponse, PaidQueryResponse } from "../types.js";
 import { API_BASE_URL, fetchJson, money } from "../lib/api.js";
@@ -47,6 +47,7 @@ export default function ControlDeckPage() {
   const [selectedProvider, setSelectedProvider] = useState<string>(modeDefaultProvider.search);
   const [result, setResult] = useState<PaidQueryResponse | null>(null);
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
+  const [privacySafeAnalytics, setPrivacySafeAnalytics] = useState<PrivacySafeAnalyticsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -89,6 +90,15 @@ export default function ControlDeckPage() {
   async function refreshMetrics() {
     const data = await fetchJson<AnalyticsResponse>(`${API_BASE_URL}/api/analytics`);
     setAnalytics(data);
+
+    // Fetch privacy-safe analytics
+    try {
+      const privacySafeData = await fetchJson<PrivacySafeAnalyticsResponse>(`${API_BASE_URL}/api/v1/analytics?limit=5`);
+      setPrivacySafeAnalytics(privacySafeData);
+    } catch (analyticsError) {
+      // Silently fail to fetch privacy-safe analytics if endpoint not available
+      console.warn("Could not fetch privacy-safe analytics", analyticsError);
+    }
   }
 
   useEffect(() => {
@@ -342,12 +352,107 @@ export default function ControlDeckPage() {
             <div className="orbital-center">
               <Gauge size={20} />
               <p>{money(analytics?.totalSpendUsd ?? 0)}</p>
-              <span>Total spend</span>
+              <span>Total spend (legacy)</span>
             </div>
           </div>
 
+          {/* Privacy-safe Analytics Section */}
+          {privacySafeAnalytics && (
+            <div className="analytics-panel privacy-safe">
+              <h3>
+                <TrendingUp size={16} /> On-Chain Analytics (Privacy-Safe)
+              </h3>
+              
+              {/* Settled Volume */}
+              <div className="settlement-group">
+                <div className="settlement-header">
+                  <span className="badge settled">SETTLED</span>
+                  <span className="settlement-label">On-Chain Confirmed</span>
+                </div>
+                <ul>
+                  <li>
+                    <span>Volume</span>
+                    <strong>${privacySafeAnalytics.aggregation.settled.totalVolumeUsd.toFixed(6)}</strong>
+                  </li>
+                  <li>
+                    <span>Queries</span>
+                    <strong>{privacySafeAnalytics.aggregation.settled.totalCount}</strong>
+                  </li>
+                  <li className="category-item">
+                    <span>Search</span>
+                    <strong>${privacySafeAnalytics.aggregation.settled.byCategory.search.volumeUsd.toFixed(6)}</strong>
+                  </li>
+                  <li className="category-item">
+                    <span>News</span>
+                    <strong>${privacySafeAnalytics.aggregation.settled.byCategory.news.volumeUsd.toFixed(6)}</strong>
+                  </li>
+                  <li className="category-item">
+                    <span>Scrape</span>
+                    <strong>${privacySafeAnalytics.aggregation.settled.byCategory.scrape.volumeUsd.toFixed(6)}</strong>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Verified Volume */}
+              {privacySafeAnalytics.aggregation.verified.totalCount > 0 && (
+                <div className="settlement-group">
+                  <div className="settlement-header">
+                    <span className="badge verified">VERIFIED</span>
+                    <span className="settlement-label">Verified Payments</span>
+                  </div>
+                  <ul>
+                    <li>
+                      <span>Volume</span>
+                      <strong>${privacySafeAnalytics.aggregation.verified.totalVolumeUsd.toFixed(6)}</strong>
+                    </li>
+                    <li>
+                      <span>Queries</span>
+                      <strong>{privacySafeAnalytics.aggregation.verified.totalCount}</strong>
+                    </li>
+                  </ul>
+                </div>
+              )}
+
+              {/* Demo-Paid Volume */}
+              {privacySafeAnalytics.aggregation.demoPaid.totalCount > 0 && (
+                <div className="settlement-group demo">
+                  <div className="settlement-header">
+                    <span className="badge demo">DEMO</span>
+                    <span className="settlement-label">Demo Queries (No Payment)</span>
+                  </div>
+                  <ul>
+                    <li>
+                      <span>Queries</span>
+                      <strong>{privacySafeAnalytics.aggregation.demoPaid.totalCount}</strong>
+                    </li>
+                  </ul>
+                </div>
+              )}
+
+              {/* Failed Volume */}
+              {privacySafeAnalytics.aggregation.failed.totalCount > 0 && (
+                <div className="settlement-group failed">
+                  <div className="settlement-header">
+                    <span className="badge failed">
+                      <AlertCircle size={12} /> FAILED
+                    </span>
+                    <span className="settlement-label">Failed Attempts</span>
+                  </div>
+                  <ul>
+                    <li>
+                      <span>Attempts</span>
+                      <strong>{privacySafeAnalytics.aggregation.failed.totalCount}</strong>
+                    </li>
+                  </ul>
+                </div>
+              )}
+
+              <p className="privacy-notice">✓ Query text and URLs redacted. Payer addresses hashed. Raw payments never exposed.</p>
+            </div>
+          )}
+
           <div className="analytics-panel">
-            <h3>Spend by category</h3>
+            <h3>Spend by category (legacy)</h3>
             <ul>
               <li>
                 <span>Search</span>
@@ -365,7 +470,7 @@ export default function ControlDeckPage() {
           </div>
 
           <div className="feed-panel">
-            <h3>Recent transactions</h3>
+            <h3>Recent transactions (legacy)</h3>
             {(analytics?.recentTransactions ?? []).slice(0, 5).map((tx) => (
               <div key={tx.id} className="feed-row">
                 <p>
@@ -378,7 +483,7 @@ export default function ControlDeckPage() {
           </div>
 
           <div className="feed-panel">
-            <h3>Execution feed</h3>
+            <h3>Execution feed (legacy)</h3>
             {(analytics?.recentUsage ?? []).slice(0, 5).map((usage) => (
               <div key={usage.id} className="feed-row">
                 <p>

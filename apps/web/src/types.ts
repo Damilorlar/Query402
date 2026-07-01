@@ -1,4 +1,4 @@
-import type { ProviderDefinition, QueryMode, QueryResult } from "@query402/shared";
+import type { ProviderDefinition, QueryMode, QueryResult, PrivacySafeAnalyticsResponse } from "@query402/shared";
 
 export interface PaidQueryResponse {
   payment: {
@@ -34,3 +34,6 @@ export interface AnalyticsResponse {
 }
 
 export type ProviderMap = Record<QueryMode, ProviderDefinition[]>;
+
+// Re-export privacy-safe analytics for web usage
+export type { PrivacySafeAnalyticsResponse };
