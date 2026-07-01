@@ -3,10 +3,12 @@ import cors from "cors";
 import { publicRouter } from "./routes/public.js";
 import { protectedRouter } from "./routes/protected.js";
 import { paidRouter } from "./routes/demo.js";
+import { sponsorshipRouter } from "./routes/sponsorship.js";
 import { createX402Middleware } from "./lib/x402.js";
 import { logger } from "./lib/logger.js";
 import { config } from "./lib/config.js";
 import { UnsafeScrapeUrlError } from "./lib/scrape-url-safety.js";
+import { PaymentEvidenceError } from "./lib/payment-evidence.js";
 
 export const app = express();
 
@@ -53,21 +55,32 @@ app.use((req, _res, next) => {
 });
 
 app.use(publicRouter);
+app.use(sponsorshipRouter);
 app.use(createX402Middleware());
 app.use(protectedRouter);
 app.use(paidRouter);
 
-app.use((error: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  if (error instanceof UnsafeScrapeUrlError) {
-    res.status(400).json({
-      error: "Scrape URL is not allowed",
-      type: "unsafe_scrape_url"
-    });
-    return;
-  }
+app.use(
+  (error: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    if (error instanceof UnsafeScrapeUrlError) {
+      res.status(400).json({
+        error: "Scrape URL is not allowed",
+        type: "unsafe_scrape_url"
+      });
+      return;
+    }
 
-  res.status(500).json({
-    error: error.message,
-    type: "internal_error"
-  });
-});
+    if (error instanceof PaymentEvidenceError) {
+      res.status(400).json({
+        error: error.message,
+        type: "payment_evidence_error"
+      });
+      return;
+    }
+
+    res.status(500).json({
+      error: error.message,
+      type: "internal_error"
+    });
+  }
+);

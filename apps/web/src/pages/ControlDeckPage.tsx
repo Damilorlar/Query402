@@ -4,6 +4,11 @@ import { Activity, CircleDollarSign, Gauge, Home, Radar, ReceiptText, Sparkles, 
 import { Link } from "react-router-dom";
 import type { AnalyticsResponse, PaidQueryResponse } from "../types.js";
 import { API_BASE_URL, fetchJson, money } from "../lib/api.js";
+import {
+  fetchSponsorshipEnabled,
+  fetchSponsorshipPreview,
+  runSponsoredPaidQuery
+} from "../lib/sponsorship.js";
 import { runWalletPaidQuery } from "../lib/x402.js";
 import { WalletSessionMachine, FreighterAdapter, type WalletState } from "../lib/wallet/index.js";
 
@@ -31,7 +36,7 @@ export default function ControlDeckPage() {
   const [mode, setMode] = useState<QueryMode>("search");
   const [paymentMode, setPaymentMode] = useState<"wallet" | "sponsored">("wallet");
   const [walletState, setWalletState] = useState<WalletState>({ status: "disconnected" });
-  
+
   const walletMachine = useMemo(() => {
     const machine = new WalletSessionMachine("Test SDF Network ; September 2015");
     machine.setAdapter(new FreighterAdapter());
@@ -50,6 +55,10 @@ export default function ControlDeckPage() {
   const [privacySafeAnalytics, setPrivacySafeAnalytics] = useState<PrivacySafeAnalyticsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sponsorshipEnabled, setSponsorshipEnabled] = useState(false);
+  const [preview, setPreview] = useState<SponsorshipPreview | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
 
   const modeProviders = useMemo(
     () => providers.filter((provider) => provider.category === mode && provider.enabled),
@@ -63,8 +72,11 @@ export default function ControlDeckPage() {
 
   const activeInput = mode === "scrape" ? urlInput : queryInput;
   const walletConnected = walletState.status === "connected";
-  const estimatedTokenAmount = selectedProviderDetails?.priceUsd.toFixed(TOKEN_DECIMALS) ?? "0.0000000";
-  const estimatedTokenBaseUnits = selectedProviderDetails ? toTokenBaseUnits(selectedProviderDetails.priceUsd) : "0";
+  const estimatedTokenAmount =
+    selectedProviderDetails?.priceUsd.toFixed(TOKEN_DECIMALS) ?? "0.0000000";
+  const estimatedTokenBaseUnits = selectedProviderDetails
+    ? toTokenBaseUnits(selectedProviderDetails.priceUsd)
+    : "0";
 
   function shortAddress(address: string) {
     if (address.length < 12) {
@@ -101,16 +113,25 @@ export default function ControlDeckPage() {
     }
   }
 
+  const showAnalyticsSkeleton = isAnalyticsLoading && analytics === null;
+  const hasUsageHistory = (analytics?.totalQueries ?? 0) > 0;
+
   useEffect(() => {
     async function bootstrap() {
-      const providersResponse = await fetchJson<{ providers: ProviderDefinition[] }>(`${API_BASE_URL}/api/providers`);
+      const [providersResponse, sponsorshipActive] = await Promise.all([
+        fetchJson<{ providers: ProviderDefinition[] }>(`${API_BASE_URL}/api/providers`),
+        fetchSponsorshipEnabled(API_BASE_URL)
+      ]);
       setProviders(providersResponse.providers);
       setSelectedProvider(modeDefaultProvider.search);
+      setSponsorshipEnabled(sponsorshipActive);
       await refreshMetrics();
     }
 
     bootstrap().catch((bootstrapError) => {
-      setError(bootstrapError instanceof Error ? bootstrapError.message : "Failed to load API data");
+      setError(
+        bootstrapError instanceof Error ? bootstrapError.message : "Failed to load API data"
+      );
     });
   }, []);
 
@@ -127,11 +148,74 @@ export default function ControlDeckPage() {
     }
   }, [walletConnected, paymentMode]);
 
+  useEffect(() => {
+    if (!sponsorshipEnabled && paymentMode === "sponsored") {
+      setPaymentMode("wallet");
+    }
+  }, [sponsorshipEnabled, paymentMode]);
+
+  // Preview the sponsorship grant status whenever the sponsored path is active
+  // and the relevant inputs change. Aborts in-flight requests so rapid toggling
+  // of mode/provider does not surface stale state.
+  useEffect(() => {
+    if (paymentMode !== "sponsored" || !walletConnected || !sponsorshipEnabled) {
+      setPreview(null);
+      setPreviewError(null);
+      setIsPreviewLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setIsPreviewLoading(true);
+    setPreviewError(null);
+
+    fetchSponsorshipPreview({
+      apiBaseUrl: API_BASE_URL,
+      wallet: walletState.address!,
+      mode,
+      provider: selectedProvider,
+      signal: controller.signal
+    })
+      .then((result) => {
+        if (!controller.signal.aborted) {
+          setPreview(result);
+        }
+      })
+      .catch((err: unknown) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+        setPreview(null);
+        if (err instanceof Error && err.name === "AbortError") {
+          return;
+        }
+        setPreviewError(err instanceof Error ? err.message : "Grant preview unavailable");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setIsPreviewLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [
+    paymentMode,
+    walletConnected,
+    sponsorshipEnabled,
+    walletState.address,
+    mode,
+    selectedProvider
+  ]);
+
   async function runPaidQuery() {
     setIsLoading(true);
     setError(null);
 
     try {
+      if (paymentMode === "sponsored" && !walletState.address) {
+        throw new Error("Connect wallet before running a sponsored query");
+      }
+
       const data =
         paymentMode === "wallet"
           ? await runWalletPaidQuery({
@@ -142,15 +226,13 @@ export default function ControlDeckPage() {
               url: mode === "scrape" ? urlInput : undefined,
               wallet: walletMachine
             })
-          : await fetchJson<PaidQueryResponse>(`${API_BASE_URL}/api/paid/run`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                mode,
-                provider: selectedProvider,
-                query: mode === "scrape" ? undefined : queryInput,
-                url: mode === "scrape" ? urlInput : undefined
-              })
+          : await runSponsoredPaidQuery({
+              apiBaseUrl: API_BASE_URL,
+              mode,
+              provider: selectedProvider,
+              query: mode === "scrape" ? undefined : queryInput,
+              url: mode === "scrape" ? urlInput : undefined,
+              walletAddress: walletState.address!
             });
 
       setResult(data);
@@ -159,10 +241,10 @@ export default function ControlDeckPage() {
       if (runError instanceof Error) {
         setError(runError.message);
         if (runError.message.toLowerCase().includes("reject")) {
-           // Normalize rejection
-           setError("Transaction rejected by user");
+          // Normalize rejection
+          setError("Transaction rejected by user");
         } else {
-           setError("Query failed");
+          setError("Query failed");
         }
       }
     } finally {
@@ -181,7 +263,10 @@ export default function ControlDeckPage() {
             <Sparkles size={13} /> Query402 Control Deck
           </p>
           <h1>Agentic internet access, paid per request.</h1>
-          <p className="subtitle">On Stellar testnet, pick a provider through the x402 flow, pay per query, and audit the trace instantly.</p>
+          <p className="subtitle">
+            On Stellar testnet, pick a provider through the x402 flow, pay per query, and audit the
+            trace instantly.
+          </p>
           <Link className="ghost-btn topbar-link" to="/">
             <Home size={14} /> Back to landing
           </Link>
@@ -198,19 +283,46 @@ export default function ControlDeckPage() {
               >
                 {walletState.status === "connecting" ? "Connecting..." : "Connect Wallet"}
               </button>
-              <button type="button" className="wallet-btn ghost" onClick={disconnectWallet} disabled={!walletConnected}>
+              <button
+                type="button"
+                className="wallet-btn ghost"
+                onClick={disconnectWallet}
+                disabled={!walletConnected}
+              >
                 Disconnect
               </button>
               <span className={walletConnected ? "wallet-status connected" : "wallet-status"}>
-                {walletConnected ? `Connected: ${shortAddress(walletState.address!)}` : walletState.status}
+                {walletConnected
+                  ? `Connected: ${shortAddress(walletState.address!)}`
+                  : walletState.status}
               </span>
             </div>
           </div>
 
-          <StatTile label="Queries" value={String(analytics?.totalQueries ?? 0)} icon={<Activity size={16} />} />
-          <StatTile label="Spend" value={money(analytics?.totalSpendUsd ?? 0)} icon={<CircleDollarSign size={16} />} />
-          <StatTile label="Search" value={money(analytics?.spendByCategory.search ?? 0)} icon={<Radar size={16} />} />
-          <StatTile label="News" value={money(analytics?.spendByCategory.news ?? 0)} icon={<ReceiptText size={16} />} />
+          <StatTile
+            label="Queries"
+            value={String(analytics?.totalQueries ?? 0)}
+            icon={<Activity size={16} />}
+            isLoading={showAnalyticsSkeleton}
+          />
+          <StatTile
+            label="Spend"
+            value={money(analytics?.totalSpendUsd ?? 0)}
+            icon={<CircleDollarSign size={16} />}
+            isLoading={showAnalyticsSkeleton}
+          />
+          <StatTile
+            label="Search"
+            value={money(analytics?.spendByCategory.search ?? 0)}
+            icon={<Radar size={16} />}
+            isLoading={showAnalyticsSkeleton}
+          />
+          <StatTile
+            label="News"
+            value={money(analytics?.spendByCategory.news ?? 0)}
+            icon={<ReceiptText size={16} />}
+            isLoading={showAnalyticsSkeleton}
+          />
         </div>
       </header>
 
@@ -237,24 +349,36 @@ export default function ControlDeckPage() {
           <div className="input-shell">
             <label>{mode === "scrape" ? "TARGET URL" : "RESEARCH QUERY"}</label>
             {mode === "scrape" ? (
-              <input value={urlInput} onChange={(event) => setUrlInput(event.target.value)} placeholder="https://example.com" />
+              <input
+                value={urlInput}
+                onChange={(event) => setUrlInput(event.target.value)}
+                placeholder="https://example.com"
+              />
             ) : (
-              <input value={queryInput} onChange={(event) => setQueryInput(event.target.value)} placeholder="latest stellar x402 updates" />
+              <input
+                value={queryInput}
+                onChange={(event) => setQueryInput(event.target.value)}
+                placeholder="latest stellar x402 updates"
+              />
             )}
 
             <label>PAYMENT MODE (Hackathon)</label>
             <div className="payment-mode-switch">
               <button
                 type="button"
-                className={paymentMode === "sponsored" ? "payment-mode-btn active" : "payment-mode-btn"}
+                className={
+                  paymentMode === "sponsored" ? "payment-mode-btn active" : "payment-mode-btn"
+                }
                 onClick={() => setPaymentMode("sponsored")}
-                disabled={!walletConnected}
+                disabled={!walletConnected || !sponsorshipEnabled}
               >
                 Sponsored tx
               </button>
               <button
                 type="button"
-                className={paymentMode === "wallet" ? "payment-mode-btn active" : "payment-mode-btn"}
+                className={
+                  paymentMode === "wallet" ? "payment-mode-btn active" : "payment-mode-btn"
+                }
                 onClick={() => setPaymentMode("wallet")}
                 disabled={!walletConnected}
               >
@@ -262,48 +386,92 @@ export default function ControlDeckPage() {
               </button>
             </div>
             <p className="wallet-hint">
-              Sponsored mode is available only after wallet connection. If you do not click Sponsored tx, payment continues with wallet tx.
+              Sponsored mode requires wallet connection for ownership proof and an enabled
+              sponsorship policy on the API.
+              {!sponsorshipEnabled ? " Sponsorship is currently disabled on the API." : null}
             </p>
           </div>
 
           <div className="provider-strip">
-            {modeProviders.map((provider, index) => (
-              <button
-                key={provider.id}
-                onClick={() => setSelectedProvider(provider.id)}
-                className={provider.id === selectedProvider ? "provider-card selected" : "provider-card"}
-                style={{ animationDelay: `${index * 70}ms` }}
-                type="button"
-              >
-                <p className="provider-name">{provider.name}</p>
-                <p className="provider-desc">{provider.description}</p>
-                <div className="provider-metrics">
-                  <span>{money(provider.priceUsd)}</span>
-                  <span>{provider.latencyEstimateMs}ms</span>
-                  <span>Q{provider.qualityScore}</span>
-                  <span className={`source-badge ${provider.sourceType}`}>{provider.sourceType}</span>
-                </div>
-              </button>
-            ))}
+            {modeProviders.length === 0 ? (
+              <p className="empty-note" style={{ margin: "1rem" }}>
+                No providers enabled for {modeLabels[mode]} mode.
+              </p>
+            ) : (
+              modeProviders.map((provider, index) => (
+                <button
+                  key={provider.id}
+                  onClick={() => setSelectedProvider(provider.id)}
+                  className={
+                    provider.id === selectedProvider ? "provider-card selected" : "provider-card"
+                  }
+                  style={{ animationDelay: `${index * 70}ms` }}
+                  type="button"
+                >
+                  <p className="provider-name">{provider.name}</p>
+                  <p className="provider-desc">{provider.description}</p>
+                  <div className="provider-metrics">
+                    <span>{money(provider.priceUsd)}</span>
+                    <span>{provider.latencyEstimateMs}ms</span>
+                    <span>Q{provider.qualityScore}</span>
+                    <span className={`source-badge ${provider.sourceType}`}>
+                      {provider.sourceType}
+                    </span>
+                  </div>
+                </button>
+              ))
+            )}
           </div>
 
           <div className="action-row preflight">
             <div>
               <p className="action-label">Provider lock</p>
               <p className="action-value">{selectedProviderDetails?.name ?? "Choose provider"}</p>
-              <p className="action-label">Mode: {paymentMode === "sponsored" ? "Sponsored" : "Wallet"}</p>
+              <p className="action-label">
+                Mode: {paymentMode === "sponsored" ? "Sponsored" : "Wallet"}
+              </p>
             </div>
             <div className="preflight-details">
-              <p className="action-label">Network: <strong>{walletState.network ?? 'Test SDF Network ; September 2015'}</strong></p>
-              <p className="action-label">Asset: <strong>{TOKEN_SYMBOL}</strong></p>
-              <p className="action-label">Amount: <strong>{estimatedTokenAmount}</strong> ({estimatedTokenBaseUnits} base units)</p>
-              <p className="action-label">Pay-to: <strong>dynamic via x402</strong></p>
+              <p className="action-label">
+                Network:{" "}
+                <strong>{walletState.network ?? "Test SDF Network ; September 2015"}</strong>
+              </p>
+              <p className="action-label">
+                Asset: <strong>{TOKEN_SYMBOL}</strong>
+              </p>
+              <p className="action-label">
+                Amount: <strong>{estimatedTokenAmount}</strong> ({estimatedTokenBaseUnits} base
+                units)
+              </p>
+              <p className="action-label">
+                Pay-to: <strong>dynamic via x402</strong>
+              </p>
             </div>
-            <button className="run-btn" onClick={runPaidQuery} disabled={isLoading || walletState.status === "signing" || !selectedProvider || !walletConnected} type="button">
+            <button
+              className="run-btn"
+              onClick={runPaidQuery}
+              disabled={
+                isLoading ||
+                walletState.status === "signing" ||
+                !selectedProviderDetails ||
+                !walletConnected
+              }
+              type="button"
+            >
               {isLoading || walletState.status === "signing" ? "Executing..." : "Run paid query"}
               <TerminalSquare size={16} />
             </button>
           </div>
+
+          {paymentMode === "sponsored" && walletConnected && sponsorshipEnabled ? (
+            <SponsorshipPreviewPanel
+              preview={preview}
+              loading={isPreviewLoading}
+              error={previewError}
+              providerName={selectedProviderDetails?.name ?? selectedProvider}
+              walletAddress={walletState.address}
+            />
+          ) : null}
 
           {walletState.error && <p className="error-box">Wallet Error: {walletState.error}</p>}
           {error ? <p className="error-box">{error}</p> : null}
@@ -311,7 +479,9 @@ export default function ControlDeckPage() {
           <div className="result-zone sweep">
             <div className="bay-head bay-head--compact">
               <h2>Signal Output</h2>
-              <span>{result ? new Date(result.result.timestamp).toLocaleTimeString() : "waiting"}</span>
+              <span>
+                {result ? new Date(result.result.timestamp).toLocaleTimeString() : "waiting"}
+              </span>
             </div>
 
             {!result ? (
@@ -322,13 +492,67 @@ export default function ControlDeckPage() {
                   <span>{result.result.providerName}</span>
                   <span>{money(result.result.priceUsd)}</span>
                   <span>{result.result.latencyMs}ms</span>
-                  <span>{result.result.traceId.slice(0, 12)}</span>
-                  <span className={`source-badge ${result.result.source}`}>Source: {result.result.source}</span>
+                  <span className={`source-badge ${result.result.source}`}>
+                    Source: {result.result.source}
+                  </span>
+                  <span>
+                    Exec: {result.result.execution.source}
+                    {result.result.execution.fallbackReason
+                      ? ` · ${result.result.execution.fallbackReason}`
+                      : ""}
+                  </span>
                 </div>
 
                 <div className="trace-box">
-                  <p>payment-response: {result.payment.paymentResponseHeader ?? "<none>"}</p>
+                  <p className="trace-row">
+                    <span className="trace-label">Trace ID</span>
+                    <code className="trace-value">{result.traceId}</code>
+                    <button
+                      type="button"
+                      className="trace-copy-btn"
+                      onClick={() => navigator.clipboard.writeText(result.traceId)}
+                      title="Copy trace ID"
+                    >
+                      Copy
+                    </button>
+                  </p>
+                  <p>
+                    evidence:{" "}
+                    {result.payment.evidence?.status ?? result.payment.evidence?.kind ?? "none"}
+                  </p>
                   <p>network: {result.payment.network}</p>
+                  {result.payment.evidence?.proofLinks && (
+                    <div className="proof-links">
+                      <p>
+                        tx:{" "}
+                        {result.payment.evidence.proofLinks.transaction !== "not_available" ? (
+                          <a
+                            href={result.payment.evidence.proofLinks.transaction}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {result.payment.evidence.transactionHash?.slice(0, 12)}...
+                          </a>
+                        ) : (
+                          "not_available"
+                        )}
+                      </p>
+                      <p>
+                        payer:{" "}
+                        {result.payment.evidence.proofLinks.payer !== "not_available" ? (
+                          <a
+                            href={result.payment.evidence.proofLinks.payer}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {result.payment.evidence.payer?.slice(0, 8)}...
+                          </a>
+                        ) : (
+                          "not_available"
+                        )}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="item-stack">
@@ -501,7 +725,19 @@ export default function ControlDeckPage() {
 
           <div className="script-panel">
             <h3>Live payload preview</h3>
-            <pre>{JSON.stringify({ mode, route: walletConnected ? "wallet" : "sponsored", provider: selectedProvider, input: activeInput }, null, 2)}</pre>
+            <pre>
+              {JSON.stringify(
+                {
+                  mode,
+                  route: paymentMode,
+                  provider: selectedProvider,
+                  input: activeInput,
+                  sponsorshipEnabled
+                },
+                null,
+                2
+              )}
+            </pre>
           </div>
         </aside>
       </main>
@@ -509,14 +745,234 @@ export default function ControlDeckPage() {
   );
 }
 
-function StatTile(props: { label: string; value: string; icon: ReactNode }) {
+function StatTile(props: { label: string; value: string; icon: ReactNode; isLoading?: boolean }) {
   return (
     <div className="stat-tile">
       <p>
         {props.icon}
         {props.label}
       </p>
-      <strong>{props.value}</strong>
+      {props.isLoading ? (
+        <span className="analytics-skeleton analytics-skeleton--value" />
+      ) : (
+        <strong>{props.value}</strong>
+      )}
     </div>
   );
+}
+
+function AnalyticsSkeletonRows(props: { count: number }) {
+  return (
+    <div className="analytics-skeleton-rows">
+      {Array.from({ length: props.count }, (_, index) => (
+        <span key={index} className="analytics-skeleton analytics-skeleton--row" />
+      ))}
+    </div>
+  );
+}
+
+function shortAddressInline(address: string) {
+  if (address.length < 12) {
+    return address;
+  }
+  return `${address.slice(0, 6)}...${address.slice(-6)}`;
+}
+
+function SponsorshipPreviewPanel(props: {
+  preview: SponsorshipPreview | null;
+  loading: boolean;
+  error: string | null;
+  providerName: string;
+  walletAddress: string | undefined;
+}) {
+  const { preview, loading, error, providerName, walletAddress } = props;
+
+  if (loading && !preview) {
+    return (
+      <div className="grant-preview-card" data-loading="true">
+        <header className="grant-preview-head">
+          <ShieldCheck size={14} />
+          <h3>Sponsored grant status</h3>
+          <span className="grant-preview-chip pending">checking…</span>
+        </header>
+        <div className="grant-preview-rows">
+          <span className="analytics-skeleton analytics-skeleton--row" />
+          <span className="analytics-skeleton analytics-skeleton--row" />
+          <span className="analytics-skeleton analytics-skeleton--row" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="grant-preview-card denied" data-loading="false">
+        <header className="grant-preview-head">
+          <ShieldCheck size={14} />
+          <h3>Sponsored grant status</h3>
+          <span className="grant-preview-chip denied">
+            <XCircle size={12} /> unavailable
+          </span>
+        </header>
+        <p className="grant-preview-summary denied">
+          Could not fetch grant status: {error}. Try reconnecting wallet or refresh the page.
+        </p>
+      </div>
+    );
+  }
+
+  if (!preview) {
+    return null;
+  }
+
+  const allowed = preview.available;
+  const allowLabel = allowed ? "Policy will allow" : "Policy will deny";
+  const allowSubtitle = allowed
+    ? "A fresh grant will be issued on execute and consumed within the budget cap."
+    : previewReasonCopy(preview.decision, preview.reason);
+
+  const walletDisplay = walletAddress ? shortAddressInline(walletAddress) : "No wallet";
+  const expiryCopy = preview.grant.expiresInSeconds
+    ? `expires in ${formatDuration(preview.grant.expiresInSeconds)}`
+    : "expired";
+  const restrictionMode = preview.grant.restrictions.mode;
+  const restrictionProvider = preview.grant.restrictions.providerId;
+
+  return (
+    <div className={allowed ? "grant-preview-card allowed" : "grant-preview-card denied"}>
+      <header className="grant-preview-head">
+        <ShieldCheck size={14} />
+        <h3>Sponsored grant status</h3>
+        <span className={allowed ? "grant-preview-chip allowed" : "grant-preview-chip denied"}>
+          {allowed ? (
+            <>
+              <CheckCircle2 size={12} /> {allowLabel}
+            </>
+          ) : (
+            <>
+              <XCircle size={12} /> {allowLabel}
+            </>
+          )}
+        </span>
+      </header>
+
+      <p className="grant-preview-summary">{allowSubtitle}</p>
+
+      <div className="grant-preview-grid">
+        <GrantRow label="Wallet" value={walletDisplay} tone="neutral" />
+        <GrantRow
+          label="Grant API"
+          value={
+            preview.sponsorshipEnabled && preview.storageAvailable
+              ? "Hypothetical grant · ready"
+              : preview.sponsorshipEnabled
+                ? "Storage unavailable"
+                : "Sponsorship disabled"
+          }
+          tone="neutral"
+        />
+        <GrantRow label="Max per grant" value={money(preview.grant.maxAmountUsd)} tone="neutral" />
+        <GrantRow
+          label="Grant TTL"
+          value={
+            <span>
+              <Clock4 size={11} /> {expiryCopy}
+            </span>
+          }
+          tone={
+            preview.grant.expiresInSeconds === 0
+              ? "deny"
+              : preview.grant.expiresInSeconds < 30
+                ? "warn"
+                : "neutral"
+          }
+        />
+        <GrantRow label="Provider" value={providerName} tone={allowed ? "neutral" : "warn"} />
+        <GrantRow
+          label="Restriction"
+          value={
+            restrictionMode && restrictionProvider
+              ? `${restrictionMode}/${restrictionProvider}`
+              : restrictionMode
+                ? `mode=${restrictionMode}, any provider`
+                : restrictionProvider
+                  ? `provider=${restrictionProvider}, any mode`
+                  : "no policy lock"
+          }
+          tone="neutral"
+        />
+        <GrantRow
+          label="Request price"
+          value={preview.quotedPriceUsd > 0 ? money(preview.quotedPriceUsd) : "—"}
+          tone={preview.priceFitsGrant ? "ok" : "deny"}
+        />
+        <GrantRow
+          label="Wallet budget"
+          value={`${money(preview.perWalletBudget.spentUsd)} / ${money(preview.perWalletBudget.limitUsd)}`}
+          tone={preview.perWalletBudget.remainingUsd <= 0 ? "deny" : "neutral"}
+        />
+      </div>
+
+      {!allowed ? (
+        <p className="grant-preview-actionable">{denyActionableCopy(preview.decision)}</p>
+      ) : (
+        <p className="grant-preview-actionable ok">
+          Ready to execute. Funds will be reserved against the wallet budget before the paid run.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function GrantRow(props: {
+  label: string;
+  value: ReactNode;
+  tone: "ok" | "warn" | "deny" | "neutral";
+}) {
+  return (
+    <div className={`grant-preview-row tone-${props.tone}`}>
+      <span className="grant-preview-label">{props.label}</span>
+      <span className="grant-preview-value">{props.value}</span>
+    </div>
+  );
+}
+
+function formatDuration(totalSeconds: number) {
+  if (totalSeconds < 60) {
+    return `${totalSeconds}s`;
+  }
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes < 60) {
+    return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const rem = minutes % 60;
+  return rem > 0 ? `${hours}h ${rem}m` : `${hours}h`;
+}
+
+function previewReasonCopy(decision: string, reason: string | undefined) {
+  if (reason) {
+    return `Policy will deny with ${decision} (${reason}). Adjust the request or grant, then retry.`;
+  }
+  return `Policy will deny with ${decision}. Adjust the request or grant, then retry.`;
+}
+
+function denyActionableCopy(decision: string) {
+  switch (decision) {
+    case "denied_sponsorship_disabled":
+      return "Sponsorship is currently disabled on the API. Contact the operator or switch to wallet payment.";
+    case "denied_storage_unavailable":
+      return "Sponsorship storage is not reachable right now. Retry shortly or fall back to wallet payment.";
+    case "denied_wrong_provider":
+      return "This provider is not available for sponsored runs. Pick another provider for this mode or switch to wallet payment.";
+    case "denied_price_exceeded":
+      return "The selected provider costs more than the grant cap. Pick a cheaper provider or wait for a fresh grant with a higher cap.";
+    case "denied_expired":
+      return "A grant signal was already issued but is expired. Re-run to mint a new one.";
+    case "denied_budget_exceeded":
+      return "The daily sponsored budget is exhausted. Try again tomorrow, switch wallets, or fall back to wallet payment.";
+    default:
+      return "Policy will deny this request. See the reason above and adjust inputs.";
+  }
 }
