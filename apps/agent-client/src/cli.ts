@@ -21,10 +21,13 @@ export function formatSummary(input: SummaryInput): string {
     ["Provider", input.provider],
     ["Status", String(input.status)],
     ["Client", input.isDemoMode ? "demo" : "real"],
-    ["Price (USD)", input.priceUsd != null ? String(input.priceUsd) : "n/a"],
+    [
+      "Price (USD)",
+      input.priceUsd != null ? String(input.priceUsd) : "n/a"
+    ],
     ["Asset", input.asset ?? "n/a"],
     ["Trace ID", input.traceId ?? "unavailable"],
-    ["Evidence ID", input.evidenceId ?? "unavailable"],
+    ["Evidence ID", input.evidenceId ?? "unavailable"]
   ];
   if (input.latencyMs != null) {
     rows.push(["Latency", `${input.latencyMs}ms`]);
@@ -45,7 +48,9 @@ function usage() {
   console.log(
     '  npm run cli -- news "stablecoin micropayments" --provider news.fast'
   );
-  console.log('  npm run cli -- scrape "https://example.com" --provider scrape.page');
+  console.log(
+    '  npm run cli -- scrape "https://example.com" --provider scrape.page'
+  );
 }
 
 function readArg(flag: string, args: string[]) {
@@ -91,7 +96,7 @@ async function main() {
     mode,
     provider,
     query: mode === "scrape" ? undefined : term,
-    url: mode === "scrape" ? term : undefined,
+    url: mode === "scrape" ? term : undefined
   });
   const latencyMs = Date.now() - start;
 
@@ -111,14 +116,13 @@ async function main() {
       isDemoMode: result.isDemoMode,
       status: result.status,
       priceUsd: resultBlock?.priceUsd as string | number | undefined,
-      asset: (
-        evidenceBlock?.proofLinks as Record<string, string> | undefined
-      )?.asset,
+      asset: (evidenceBlock?.proofLinks as Record<string, string> | undefined)
+        ?.asset,
       traceId: resultBlock?.traceId as string | undefined,
       evidenceId: (
         evidenceBlock?.id ?? evidenceBlock?.evidenceId
       ) as string | undefined,
-      latencyMs,
+      latencyMs
     })
   );
 }

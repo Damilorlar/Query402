@@ -49,10 +49,10 @@ const API_BASE = config.API_BASE_URL.replace(/\/$/, "");
 // Secret redaction
 // ---------------------------------------------------------------------------
 const SECRET_PATTERNS: RegExp[] = [
-  /S[A-Z0-9]{55}/g, // Stellar secret key (starts with S, 56 chars)
-  /Bearer\s+\S+/gi, // Bearer tokens
-  /x-payment:\s*\S+/gi, // raw payment header value
-  /X402-Payment:\s*\S+/gi,
+  /S[A-Z0-9]{55}/g,
+  /Bearer\s+\S+/gi,
+  /x-payment:\s*\S+/gi,
+  /X402-Payment:\s*\S+/gi
 ];
 const REDACTED = "[REDACTED]";
 
@@ -61,7 +61,7 @@ const SENSITIVE_HEADER_KEYS = new Set([
   "x402-payment",
   "authorization",
   "x-api-key",
-  "payment-response", // raw tx ID; replaced with presence flag below
+  "payment-response"
 ]);
 
 const SENSITIVE_OBJ_KEYS = new Set([
@@ -71,7 +71,7 @@ const SENSITIVE_OBJ_KEYS = new Set([
   "private_key",
   "privatekey",
   "api_key",
-  "apikey",
+  "apikey"
 ]);
 
 function redact(value: unknown): unknown {
@@ -175,7 +175,7 @@ async function step1Health(): Promise<Step> {
       note:
         r.status === 200
           ? "API is healthy and ready."
-          : "API responded but may not be fully ready.",
+          : "API responded but may not be fully ready."
     };
   } catch (err) {
     return {
@@ -183,7 +183,7 @@ async function step1Health(): Promise<Step> {
       timestamp,
       status: "n/a",
       error: `Could not reach ${API_BASE}/health — is the API running? (${err})`,
-      note: "Transcript is still written for CI evidence purposes.",
+      note: "Transcript is still written for CI evidence purposes."
     };
   }
 }
@@ -198,14 +198,14 @@ async function step2Catalog(): Promise<Step> {
       status: r.status,
       responseHeaders: safeHeaders(r.headers),
       body: redact(r.body),
-      note: "Available search/news/scrape providers with per-request pricing.",
+      note: "Available search/news/scrape providers with per-request pricing."
     };
   } catch (err) {
     return {
       step: "2_provider_catalog",
       timestamp,
       status: "n/a",
-      error: String(err),
+      error: String(err)
     };
   }
 }
@@ -216,13 +216,17 @@ async function step2Catalog(): Promise<Step> {
  */
 async function step3PaidQueries(): Promise<Step[]> {
   const queries: Array<Parameters<typeof runPaidQuery>[0]> = [
-    { mode: "search", provider: "search.pro", query: "latest stellar x402 updates" },
+    {
+      mode: "search",
+      provider: "search.pro",
+      query: "latest stellar x402 updates"
+    },
     { mode: "news", provider: "news.deep", query: "stablecoin micropayments" },
     {
       mode: "scrape",
       provider: "scrape.extract",
-      url: "https://developers.stellar.org",
-    },
+      url: "https://developers.stellar.org"
+    }
   ];
 
   const steps: Step[] = [];
@@ -230,7 +234,7 @@ async function step3PaidQueries(): Promise<Step[]> {
   for (let i = 0; i < queries.length; i++) {
     const q = queries[i];
     const timestamp = new Date().toISOString();
-    const label = `3${String.fromCharCode(97 + i)}_demo_paid_${q.mode}`; // 3a_, 3b_, 3c_
+    const label = `3${String.fromCharCode(97 + i)}_demo_paid_${q.mode}`;
 
     try {
       const response = await runPaidQuery(q);
@@ -244,15 +248,16 @@ async function step3PaidQueries(): Promise<Step[]> {
         body: redact({
           provider: q.provider,
           endpoint: response.endpoint,
-          // Never write the raw payment-response header value; record presence only
           payment_response_present: Boolean(response.paymentResponse),
           price_usd: result?.priceUsd ?? "n/a",
-          items_returned: Array.isArray(result?.items) ? result.items.length : 0,
-          result_body: payload,
+          items_returned: Array.isArray(result?.items)
+            ? result.items.length
+            : 0,
+          result_body: payload
         }),
         note:
           "DEMO_MODE=true — payment header contains a placeholder tx ID; " +
-          "no real Stellar transaction is submitted or settled.",
+          "no real Stellar transaction is submitted or settled."
       });
     } catch (err) {
       steps.push({ step: label, timestamp, status: "n/a", error: String(err) });
@@ -276,9 +281,9 @@ function step4Metadata(paidSteps: Step[]): Step {
       payment_status: "DEMO — no real Stellar settlement",
       note:
         "In production this section contains the facilitator-signed " +
-        "payment-response header. Here it is intentionally omitted.",
+        "payment-response header. Here it is intentionally omitted."
     },
-    note: "Synthesised from paid-query responses. No secrets included.",
+    note: "Synthesised from paid-query responses. No secrets included."
   };
 }
 
@@ -292,14 +297,14 @@ async function step5Analytics(): Promise<Step> {
       status: r.status,
       responseHeaders: safeHeaders(r.headers),
       body: redact(r.body),
-      note: "Total spend + per-category breakdown stored in SQLite.",
+      note: "Total spend + per-category breakdown stored in SQLite."
     };
   } catch (err) {
     return {
       step: "5_analytics_summary",
       timestamp,
       status: "n/a",
-      error: String(err),
+      error: String(err)
     };
   }
 }
@@ -318,7 +323,7 @@ function assemble(steps: Step[]): Transcript {
       "Generated in DEMO_MODE. No real Stellar credentials or live payments " +
       "were used. All secret fields are redacted. " +
       "Safe to attach to Drips/SCF updates and investor notes.",
-    steps,
+    steps
   };
 }
 
@@ -333,7 +338,7 @@ function toText(t: Transcript): string {
     `  Network   : ${t.settlement_network}`,
     `  ⚠  ${t.warning}`,
     bar,
-    "",
+    ""
   ];
   for (const s of t.steps) {
     lines.push(`▶ ${s.step}`);
@@ -399,7 +404,9 @@ async function main(): Promise<void> {
   console.log(`   JSON : ${json}`);
   console.log(`   TXT  : ${txt}`);
   console.log("");
-  console.log("   Label   : DEMO_MODE  (safe for SCF / Drips / investor notes)");
+  console.log(
+    "   Label   : DEMO_MODE  (safe for SCF / Drips / investor notes)"
+  );
   console.log("   Secrets : all redacted");
   console.log("   Payment : no real Stellar transaction");
 }
