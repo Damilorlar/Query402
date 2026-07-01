@@ -37,9 +37,7 @@ const OUT_DIR = path.resolve(__dirname, "../../../transcript");
 // Guard: refuse to run outside DEMO_MODE
 // ---------------------------------------------------------------------------
 if (config.DEMO_MODE !== "true") {
-  console.error(
-    "ERROR: Set DEMO_MODE=true to generate a transcript without live credentials."
-  );
+  console.error("ERROR: Set DEMO_MODE=true to generate a transcript without live credentials.");
   process.exit(1);
 }
 
@@ -173,9 +171,7 @@ async function step1Health(): Promise<Step> {
       responseHeaders: safeHeaders(r.headers),
       body: redact(r.body),
       note:
-        r.status === 200
-          ? "API is healthy and ready."
-          : "API responded but may not be fully ready."
+        r.status === 200 ? "API is healthy and ready." : "API responded but may not be fully ready."
     };
   } catch (err) {
     return {
@@ -250,9 +246,7 @@ async function step3PaidQueries(): Promise<Step[]> {
           endpoint: response.endpoint,
           payment_response_present: Boolean(response.paymentResponse),
           price_usd: result?.priceUsd ?? "n/a",
-          items_returned: Array.isArray(result?.items)
-            ? result.items.length
-            : 0,
+          items_returned: Array.isArray(result?.items) ? result.items.length : 0,
           result_body: payload
         }),
         note:
@@ -404,8 +398,7 @@ async function main(): Promise<void> {
   console.log(`   JSON : ${json}`);
   console.log(`   TXT  : ${txt}`);
   console.log("");
-  const note =
-    "   Label   : DEMO_MODE  (safe for SCF / Drips / investor notes)";
+  const note = "   Label   : DEMO_MODE  (safe for SCF / Drips / investor notes)";
   console.log(note);
   console.log("   Secrets : all redacted");
   console.log("   Payment : no real Stellar transaction");

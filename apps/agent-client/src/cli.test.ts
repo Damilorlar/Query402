@@ -21,35 +21,27 @@ describe("CLI Validation", () => {
     }
   });
 
-  it(
-    "exits with clear message when URL is missing for scrape mode (with flag)",
-    async () => {
-      try {
-        await execAsync(
-          `${tsx} "${cliPath}" scrape --provider scrape.page`
-        );
-        expect.fail("Should have failed");
-      } catch (error: any) {
-        expect(error.code).toBe(1);
-        expect(error.stderr).toContain("Missing URL for scrape mode.");
-        expect(error.stdout).toContain("Usage:");
-      }
+  it("exits with clear message when URL is missing for scrape mode (with flag)", async () => {
+    try {
+      await execAsync(`${tsx} "${cliPath}" scrape --provider scrape.page`);
+      expect.fail("Should have failed");
+    } catch (error: any) {
+      expect(error.code).toBe(1);
+      expect(error.stderr).toContain("Missing URL for scrape mode.");
+      expect(error.stdout).toContain("Usage:");
     }
-  );
+  });
 
-  it(
-    "exits with clear message when query is missing for news mode",
-    async () => {
-      try {
-        await execAsync(`${tsx} "${cliPath}" news`);
-        expect.fail("Should have failed");
-      } catch (error: any) {
-        expect(error.code).toBe(1);
-        expect(error.stderr).toContain("Missing query for news mode.");
-        expect(error.stdout).toContain("Usage:");
-      }
+  it("exits with clear message when query is missing for news mode", async () => {
+    try {
+      await execAsync(`${tsx} "${cliPath}" news`);
+      expect.fail("Should have failed");
+    } catch (error: any) {
+      expect(error.code).toBe(1);
+      expect(error.stderr).toContain("Missing query for news mode.");
+      expect(error.stdout).toContain("Usage:");
     }
-  );
+  });
 });
 
 describe("formatSummary", () => {

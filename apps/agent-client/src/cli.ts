@@ -21,10 +21,7 @@ export function formatSummary(input: SummaryInput): string {
     ["Provider", input.provider],
     ["Status", String(input.status)],
     ["Client", input.isDemoMode ? "demo" : "real"],
-    [
-      "Price (USD)",
-      input.priceUsd != null ? String(input.priceUsd) : "n/a"
-    ],
+    ["Price (USD)", input.priceUsd != null ? String(input.priceUsd) : "n/a"],
     ["Asset", input.asset ?? "n/a"],
     ["Trace ID", input.traceId ?? "unavailable"],
     ["Evidence ID", input.evidenceId ?? "unavailable"]
@@ -33,24 +30,16 @@ export function formatSummary(input: SummaryInput): string {
     rows.push(["Latency", `${input.latencyMs}ms`]);
   }
   const labelWidth = Math.max(...rows.map(([label]) => label.length));
-  const body = rows
-    .map(([label, value]) => `  ${label.padEnd(labelWidth)}  ${value}`)
-    .join("\n");
+  const body = rows.map(([label, value]) => `  ${label.padEnd(labelWidth)}  ${value}`).join("\n");
   const divider = "=".repeat(labelWidth + 4 + 20);
   return `\n=== Query402 Paid Query Summary ===\n${body}\n${divider}`;
 }
 
 function usage() {
   console.log("Usage:");
-  console.log(
-    '  npm run cli -- search "latest soroban updates" --provider search.basic'
-  );
-  console.log(
-    '  npm run cli -- news "stablecoin micropayments" --provider news.fast'
-  );
-  console.log(
-    '  npm run cli -- scrape "https://example.com" --provider scrape.page'
-  );
+  console.log('  npm run cli -- search "latest soroban updates" --provider search.basic');
+  console.log('  npm run cli -- news "stablecoin micropayments" --provider news.fast');
+  console.log('  npm run cli -- scrape "https://example.com" --provider scrape.page');
 }
 
 function readArg(flag: string, args: string[]) {
@@ -85,11 +74,7 @@ async function main() {
 
   const provider =
     readArg("--provider", args) ??
-    (mode === "search"
-      ? "search.basic"
-      : mode === "news"
-        ? "news.fast"
-        : "scrape.page");
+    (mode === "search" ? "search.basic" : mode === "news" ? "news.fast" : "scrape.page");
 
   const start = Date.now();
   const result = await runPaidQuery({
@@ -101,13 +86,10 @@ async function main() {
   const latencyMs = Date.now() - start;
 
   const payload = result.body as Record<string, unknown>;
-  const resultBlock = (
-    payload?.result ??
-    (payload?.body as Record<string, unknown>)?.result
-  ) as Record<string, unknown> | undefined;
-  const evidenceBlock = (
-    payload?.payment as Record<string, unknown>
-  )?.evidence as Record<string, unknown> | undefined;
+  const resultBlock = (payload?.result ?? (payload?.body as Record<string, unknown>)?.result) as
+    Record<string, unknown> | undefined;
+  const evidenceBlock = (payload?.payment as Record<string, unknown>)?.evidence as
+    Record<string, unknown> | undefined;
 
   console.log(
     formatSummary({
@@ -116,13 +98,9 @@ async function main() {
       isDemoMode: result.isDemoMode,
       status: result.status,
       priceUsd: resultBlock?.priceUsd as string | number | undefined,
-      asset: (
-        evidenceBlock?.proofLinks as Record<string, string> | undefined
-      )?.asset,
+      asset: (evidenceBlock?.proofLinks as Record<string, string> | undefined)?.asset,
       traceId: resultBlock?.traceId as string | undefined,
-      evidenceId: (
-        evidenceBlock?.id ?? evidenceBlock?.evidenceId
-      ) as string | undefined,
+      evidenceId: (evidenceBlock?.id ?? evidenceBlock?.evidenceId) as string | undefined,
       latencyMs
     })
   );
@@ -132,10 +110,7 @@ import { fileURLToPath } from "node:url";
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   main().catch((error) => {
-    console.error(
-      "CLI request failed:",
-      error instanceof Error ? error.message : error
-    );
+    console.error("CLI request failed:", error instanceof Error ? error.message : error);
     process.exit(1);
   });
 }
