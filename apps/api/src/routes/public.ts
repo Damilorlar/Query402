@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { getSortedProviders } from "../lib/pricing.js";
-import { getAnalyticsSummary, getUsageEvents } from "../lib/persistence.js";
+import { getAnalyticsSummary, getSettlementDigest, getUsageEvents } from "../lib/persistence.js";
 import { config, getConfigSnapshot } from "../lib/config.js";
 import { apiVersion } from "../lib/build-metadata.js";
 import { getCatalog } from "../services/query-service.js";
@@ -78,6 +78,15 @@ publicRouter.get("/api/analytics", async (req, res, next) => {
       recentPaymentLimit: parsed.data.recentPaymentLimit
     });
     res.json(analytics);
+  } catch (error) {
+    next(error);
+  }
+});
+
+publicRouter.get("/api/audit/digest", async (_req, res, next) => {
+  try {
+    const digest = await getSettlementDigest();
+    res.json(digest);
   } catch (error) {
     next(error);
   }

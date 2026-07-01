@@ -1,7 +1,8 @@
 import express from "express";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildTestUsageEvent } from "../test/storage-test-helpers.js";
+import { persistPaymentAndUsage } from "../lib/persistence.js";
+import { buildTestPaymentAttempt, buildTestUsageEvent } from "../test/storage-test-helpers.js";
 import { applyApiTestEnv, resetApiTestStorage } from "../test/api-test-helpers.js";
 
 describe("public routes", () => {
@@ -202,4 +203,64 @@ describe("public routes", () => {
     expect(catalogResponse.body.byCategory.scrape.length).toBeGreaterThan(0);
   });
 
+  it("returns an empty settlement digest when no paid runs are recorded", async () => {
+    const app = await createPublicApp();
+
+    const response = await request(app).get("/api/audit/digest");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      totalPaidRuns: 0,
+      totalSettledAmountUsd: 0,
+      settledAmountByAssetNetwork: {},
+      withPaymentEvidence: 0,
+      missingPaymentEvidence: 0,
+      latestPaymentTimestamp: null
+    });
+    expect(response.body.generatedAt).toEqual(expect.any(String));
+  });
+
+  it("returns a populated settlement digest for recorded paid runs", async () => {
+    const firstPayment = buildTestPaymentAttempt({
+      id: "pay_001",
+      amountUsd: 1.25,
+      createdAt: "2026-06-21T10:00:00.000Z",
+      transactionHash: "tx_001"
+    });
+    const firstUsage = buildTestUsageEvent({
+      id: "use_001",
+      createdAt: firstPayment.createdAt,
+      paymentStatus: "settled"
+    });
+
+    const secondPayment = buildTestPaymentAttempt({
+      id: "pay_002",
+      amountUsd: 0.5,
+      createdAt: "2026-06-21T10:05:00.000Z"
+    });
+    const secondUsage = buildTestUsageEvent({
+      id: "use_002",
+      createdAt: secondPayment.createdAt,
+      paymentStatus: "settled"
+    });
+
+    await persistPaymentAndUsage({ payment: firstPayment, usage: firstUsage });
+    await persistPaymentAndUsage({ payment: secondPayment, usage: secondUsage });
+
+    const app = await createPublicApp();
+    const response = await request(app).get("/api/audit/digest");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      totalPaidRuns: 2,
+      totalSettledAmountUsd: 1.75,
+      settledAmountByAssetNetwork: {
+        "stellar:testnet": 1.75
+      },
+      withPaymentEvidence: 1,
+      missingPaymentEvidence: 1,
+      latestPaymentTimestamp: secondPayment.createdAt
+    });
+    expect(response.body.generatedAt).toEqual(expect.any(String));
+  });
 });

@@ -5,6 +5,7 @@ import type {
   ProviderExecutionMetadata,
   PaymentSource,
   QueryMode,
+  SettlementDigest,
   UsageEvent
 } from "@query402/shared";
 import { config } from "./config.js";
@@ -127,6 +128,10 @@ export async function getAnalyticsSummary(
   options?: AnalyticsQueryOptions
 ): Promise<AnalyticsSummary> {
   return getStorageRepository().getAnalyticsSummary(options);
+}
+
+export async function getSettlementDigest(): Promise<SettlementDigest> {
+  return getStorageRepository().getSettlementDigest();
 }
 
 export async function persistPaidRequest(input: PersistPaidRequestInput): Promise<void> {
