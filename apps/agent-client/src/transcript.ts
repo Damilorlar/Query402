@@ -404,9 +404,9 @@ async function main(): Promise<void> {
   console.log(`   JSON : ${json}`);
   console.log(`   TXT  : ${txt}`);
   console.log("");
-  console.log(
-    "   Label   : DEMO_MODE  (safe for SCF / Drips / investor notes)"
-  );
+  const note =
+    "   Label   : DEMO_MODE  (safe for SCF / Drips / investor notes)";
+  console.log(note);
   console.log("   Secrets : all redacted");
   console.log("   Payment : no real Stellar transaction");
 }

@@ -116,8 +116,9 @@ async function main() {
       isDemoMode: result.isDemoMode,
       status: result.status,
       priceUsd: resultBlock?.priceUsd as string | number | undefined,
-      asset: (evidenceBlock?.proofLinks as Record<string, string> | undefined)
-        ?.asset,
+      asset: (
+        evidenceBlock?.proofLinks as Record<string, string> | undefined
+      )?.asset,
       traceId: resultBlock?.traceId as string | undefined,
       evidenceId: (
         evidenceBlock?.id ?? evidenceBlock?.evidenceId
