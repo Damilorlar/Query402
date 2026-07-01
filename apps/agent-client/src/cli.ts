@@ -17,13 +17,13 @@ export interface SummaryInput {
 /** Formats the post-query summary table. Pure function — safe to unit-test directly. */
 export function formatSummary(input: SummaryInput): string {
   const rows: [string, string][] = [
-    ["Mode",        input.mode],
-    ["Provider",    input.provider],
-    ["Status",      String(input.status)],
-    ["Client",      input.isDemoMode ? "demo" : "real"],
+    ["Mode", input.mode],
+    ["Provider", input.provider],
+    ["Status", String(input.status)],
+    ["Client", input.isDemoMode ? "demo" : "real"],
     ["Price (USD)", input.priceUsd != null ? String(input.priceUsd) : "n/a"],
-    ["Asset",       input.asset ?? "n/a"],
-    ["Trace ID",    input.traceId ?? "unavailable"],
+    ["Asset", input.asset ?? "n/a"],
+    ["Trace ID", input.traceId ?? "unavailable"],
     ["Evidence ID", input.evidenceId ?? "unavailable"],
   ];
   if (input.latencyMs != null) {
@@ -39,8 +39,12 @@ export function formatSummary(input: SummaryInput): string {
 
 function usage() {
   console.log("Usage:");
-  console.log('  npm run cli -- search "latest soroban updates" --provider search.basic');
-  console.log('  npm run cli -- news "stablecoin micropayments" --provider news.fast');
+  console.log(
+    '  npm run cli -- search "latest soroban updates" --provider search.basic'
+  );
+  console.log(
+    '  npm run cli -- news "stablecoin micropayments" --provider news.fast'
+  );
   console.log('  npm run cli -- scrape "https://example.com" --provider scrape.page');
 }
 
@@ -76,20 +80,29 @@ async function main() {
 
   const provider =
     readArg("--provider", args) ??
-    (mode === "search" ? "search.basic" : mode === "news" ? "news.fast" : "scrape.page");
+    (mode === "search"
+      ? "search.basic"
+      : mode === "news"
+        ? "news.fast"
+        : "scrape.page");
 
   const start = Date.now();
   const result = await runPaidQuery({
     mode,
     provider,
     query: mode === "scrape" ? undefined : term,
-    url: mode === "scrape" ? term : undefined
+    url: mode === "scrape" ? term : undefined,
   });
   const latencyMs = Date.now() - start;
 
   const payload = result.body as Record<string, unknown>;
-  const resultBlock = (payload?.result ?? (payload?.body as Record<string, unknown>)?.result) as Record<string, unknown> | undefined;
-  const evidenceBlock = (payload?.payment as Record<string, unknown>)?.evidence as Record<string, unknown> | undefined;
+  const resultBlock = (
+    payload?.result ??
+    (payload?.body as Record<string, unknown>)?.result
+  ) as Record<string, unknown> | undefined;
+  const evidenceBlock = (
+    payload?.payment as Record<string, unknown>
+  )?.evidence as Record<string, unknown> | undefined;
 
   console.log(
     formatSummary({
@@ -98,9 +111,13 @@ async function main() {
       isDemoMode: result.isDemoMode,
       status: result.status,
       priceUsd: resultBlock?.priceUsd as string | number | undefined,
-      asset: (evidenceBlock?.proofLinks as Record<string, string> | undefined)?.asset,
+      asset: (
+        evidenceBlock?.proofLinks as Record<string, string> | undefined
+      )?.asset,
       traceId: resultBlock?.traceId as string | undefined,
-      evidenceId: (evidenceBlock?.id ?? evidenceBlock?.evidenceId) as string | undefined,
+      evidenceId: (
+        evidenceBlock?.id ?? evidenceBlock?.evidenceId
+      ) as string | undefined,
       latencyMs,
     })
   );
@@ -110,7 +127,10 @@ import { fileURLToPath } from "node:url";
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   main().catch((error) => {
-    console.error("CLI request failed:", error instanceof Error ? error.message : error);
+    console.error(
+      "CLI request failed:",
+      error instanceof Error ? error.message : error
+    );
     process.exit(1);
   });
 }
