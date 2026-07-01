@@ -94,12 +94,5 @@ ALTER TABLE payment_attempts ADD COLUMN error_code TEXT;
 ALTER TABLE usage_events ADD COLUMN price_outlier INTEGER;
 ALTER TABLE usage_events ADD COLUMN price_outlier_reason TEXT;
 `
-  },
-  {
-    version: 4,
-    sql: `
-ALTER TABLE usage_events ADD COLUMN price_outlier INTEGER;
-ALTER TABLE usage_events ADD COLUMN price_outlier_reason TEXT;
-`
   }
 ];
