@@ -7,6 +7,9 @@ function usage() {
   console.log('  npm run cli -- search "latest soroban updates" --provider search.basic');
   console.log('  npm run cli -- news "stablecoin micropayments" --provider news.fast');
   console.log('  npm run cli -- scrape "https://example.com" --provider scrape.page');
+  console.log("Options:");
+  console.log("  --provider <id>    Provider ID (default: search.basic / news.fast / scrape.page)");
+  console.log("  --receipt          Output structured JSON receipt only");
 }
 
 function readArg(flag: string, args: string[]) {
@@ -17,10 +20,36 @@ function readArg(flag: string, args: string[]) {
   return args[index + 1];
 }
 
+function hasFlag(flag: string, args: string[]) {
+  return args.includes(flag);
+}
+
+export function redactInput(input: string): string {
+  if (input.length <= 50) return input;
+  return input.slice(0, 47) + "...";
+}
+
+export function buildReceipt(input: {
+  mode: QueryMode;
+  provider: string;
+  term: string;
+  price?: number;
+  traceId?: string;
+}) {
+  return {
+    command: input.mode,
+    provider: input.provider,
+    input: redactInput(input.term),
+    price: input.price ?? null,
+    traceId: input.traceId ?? null,
+  };
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const modeArg = args[0];
   const term = args[1];
+  const receiptMode = hasFlag("--receipt", args) || hasFlag("--json", args);
 
   if (!modeArg || !["search", "news", "scrape"].includes(modeArg)) {
     usage();
@@ -50,15 +79,21 @@ async function main() {
     url: mode === "scrape" ? term : undefined
   });
 
+  const payload = result.body as Record<string, any>;
+  const price = payload?.result?.priceUsd ?? payload?.body?.result?.priceUsd;
+  const trace = payload?.result?.traceId ?? payload?.body?.result?.traceId;
+
+  if (receiptMode) {
+    const receipt = buildReceipt({ mode, provider, term, price, traceId: trace });
+    console.log(JSON.stringify(receipt, null, 2));
+    return;
+  }
+
   console.log("\n=== Query402 Paid Request ===");
   console.log(`Endpoint: ${result.endpoint}`);
   console.log(`Provider: ${provider}`);
   console.log(`Status: ${result.status}`);
   console.log(`Payment Header: ${result.paymentResponse ?? "<none>"}`);
-
-  const payload = result.body as Record<string, any>;
-  const price = payload?.result?.priceUsd ?? payload?.body?.result?.priceUsd;
-  const trace = payload?.result?.traceId ?? payload?.body?.result?.traceId;
 
   if (price) {
     console.log(`Price Paid (USD): ${price}`);
@@ -82,7 +117,10 @@ async function main() {
   console.log(JSON.stringify(payload, null, 2));
 }
 
-main().catch((error) => {
-  console.error("CLI request failed:", error instanceof Error ? error.message : error);
-  process.exit(1);
-});
+const runningDirectly = process.argv[1] && new URL(process.argv[1], "file://").href === import.meta.url;
+if (runningDirectly) {
+  main().catch((error) => {
+    console.error("CLI request failed:", error instanceof Error ? error.message : error);
+    process.exit(1);
+  });
+}
