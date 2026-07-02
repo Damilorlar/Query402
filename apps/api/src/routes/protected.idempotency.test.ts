@@ -23,7 +23,16 @@ function mockQueryResult(traceId = "trace_x402") {
     timestamp: new Date().toISOString(),
     traceId,
     items: [],
-    source: "deterministic-fallback"
+    source: "deterministic-fallback",
+    execution: {
+      providerId: "search.basic",
+      source: "deterministic-fallback",
+      usedFallback: true,
+      fallbackReason: "deterministic-provider",
+      latencyEstimateMs: 700,
+      observedDurationMs: 8,
+      circuitBreakerState: "closed"
+    }
   });
 }
 
@@ -76,9 +85,11 @@ describe("x402 idempotency", () => {
 
     const first = await demoPaidRequest(app).set("Idempotency-Key", idempotencyKey);
     expect(first.status).toBe(200);
+    expect(first.body.traceId).toBe(first.body.result.traceId);
 
     const second = await demoPaidRequest(app).set("Idempotency-Key", idempotencyKey);
     expect(second.status).toBe(200);
+    expect(second.body.traceId).toBe(first.body.traceId);
     expect(second.body.result.traceId).toBe(first.body.result.traceId);
     expect(executeQueryMock).toHaveBeenCalledTimes(1);
   });
@@ -122,6 +133,7 @@ describe("x402 idempotency", () => {
       .set("payment-response", "demo-proof-replay");
 
     expect(replay.status).toBe(200);
+    expect(replay.body.traceId).toBe(first.body.traceId);
     expect(replay.body.result.traceId).toBe(first.body.result.traceId);
     expect(executeQueryMock).toHaveBeenCalledTimes(1);
   });

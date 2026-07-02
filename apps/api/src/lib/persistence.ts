@@ -2,12 +2,14 @@ import { nanoid } from "nanoid";
 import type {
   AnalyticsSummary,
   PaymentAttempt,
+  ProviderExecutionMetadata,
   PaymentSource,
   QueryMode,
   UsageEvent
 } from "@query402/shared";
 import { config } from "./config.js";
 import { getStorageRepository } from "./storage/index.js";
+import { getProviderById } from "./pricing.js";
 import type {
   AnalyticsQueryOptions,
   PaginationOptions,
@@ -23,6 +25,7 @@ export interface PersistPaidRequestInput {
   latencyMs: number;
   traceId: string;
   paymentResponseHeader: string | null;
+  execution: ProviderExecutionMetadata;
   payerPublicKey?: string;
 }
 
@@ -56,6 +59,23 @@ function buildPaymentAttempt(
   };
 }
 
+function computePriceOutlier(
+  providerId: string,
+  priceUsd: number
+): Partial<Pick<UsageEvent, "priceOutlier" | "priceOutlierReason">> {
+  const provider = getProviderById(providerId);
+  if (!provider) return {};
+
+  const threshold = provider.priceUsd * 1.1;
+  if (priceUsd > threshold) {
+    return {
+      priceOutlier: true,
+      priceOutlierReason: `Price $${priceUsd.toFixed(4)} exceeds configured price $${provider.priceUsd.toFixed(4)} for provider ${providerId}`
+    };
+  }
+  return {};
+}
+
 function buildUsageEvent(
   input: PersistPaidRequestInput,
   overrides: Partial<UsageEvent> = {}
@@ -77,6 +97,8 @@ function buildUsageEvent(
     traceId: input.traceId,
     createdAt: now,
     latencyMs: input.latencyMs,
+    execution: input.execution,
+    ...computePriceOutlier(input.provider, input.priceUsd),
     ...overrides
   };
 }
