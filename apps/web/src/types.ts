@@ -45,6 +45,7 @@ export interface AnalyticsResponse {
     fallbackByCategory: Record<QueryMode, number>;
     fallbackReasonCounts: Record<string, number>;
   };
+  latencyBuckets: Record<LatencyBucket, number>;
   recentTransactions: Array<{
     id: string;
     amountUsd: number;

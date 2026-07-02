@@ -11,6 +11,8 @@ export type ExecutionFallbackReason =
 export type CircuitBreakerState = "closed" | "half-open" | "open";
 export type PaymentSource = "sponsored" | "wallet" | "demo";
 
+export type LatencyBucket = "<1s" | "1-3s" | "3-10s" | ">10s" | "unknown";
+
 export interface ProviderExecutionMetadata {
   providerId: string;
   source: SourceType;
@@ -103,8 +105,6 @@ export interface PaymentAttempt {
   sponsorPublicKey?: string;
 }
 
-export type LatencyBucket = "<1s" | "1-3s" | "3-10s" | ">10s" | "unknown";
-
 export interface AnalyticsSummary {
   totalQueries: number;
   totalSpendUsd: number;
@@ -124,6 +124,7 @@ export interface AnalyticsSummary {
     fallbackByCategory: Record<QueryMode, number>;
     fallbackReasonCounts: Record<ExecutionFallbackReason, number>;
   };
+  latencyBuckets: Record<LatencyBucket, number>;
   recentTransactions: PaymentAttempt[];
   recentUsage: UsageEvent[];
 }

@@ -1,6 +1,7 @@
 import type {
   AnalyticsSummary,
   ExecutionFallbackReason,
+  LatencyBucket,
   PaymentAttempt,
   QueryMode,
   UsageEvent
@@ -12,6 +13,18 @@ type UsageExecution = NonNullable<UsageEvent["execution"]>;
 
 function emptySpendByCategory(): Record<QueryMode, number> {
   return { search: 0, news: 0, scrape: 0 };
+}
+
+function emptyLatencyBuckets(): Record<LatencyBucket, number> {
+  return { "<1s": 0, "1-3s": 0, "3-10s": 0, ">10s": 0, unknown: 0 };
+}
+
+function classifyLatency(latencyMs: number): LatencyBucket {
+  if (latencyMs <= 0) return "unknown";
+  if (latencyMs < 1000) return "<1s";
+  if (latencyMs < 3000) return "1-3s";
+  if (latencyMs < 10000) return "3-10s";
+  return ">10s";
 }
 
 function emptyExecutionSummary(): NonNullable<AnalyticsSummary["executionSummary"]> {
@@ -112,6 +125,12 @@ export function buildAnalyticsSummary(
     emptyExecutionSummary()
   );
 
+  const latencyBuckets = usage.reduce<Record<LatencyBucket, number>>((acc, event) => {
+    const bucket = classifyLatency(event.latencyMs);
+    acc[bucket] += 1;
+    return acc;
+  }, emptyLatencyBuckets());
+
   const recentUsageLimit = options?.recentUsageLimit ?? DEFAULT_RECENT_LIMIT;
   const recentPaymentLimit = options?.recentPaymentLimit ?? DEFAULT_RECENT_LIMIT;
 
@@ -125,6 +144,7 @@ export function buildAnalyticsSummary(
     settledSpendByCategory,
     demoSpendByCategory,
     executionSummary,
+    latencyBuckets,
     recentTransactions: payments.slice(0, recentPaymentLimit),
     recentUsage: usage.slice(0, recentUsageLimit)
   };
