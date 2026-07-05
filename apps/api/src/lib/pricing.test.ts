@@ -82,7 +82,15 @@ describe("provider pricing", () => {
       latencyEstimateMs: 100,
       qualityScore: 80,
       sourceType: "deterministic-fallback",
-      enabled: true
+      enabled: true,
+      slaBadges: {
+        latencyBand: "fast",
+        latencyLabel: "Fast response",
+        reliabilityBand: "fallback",
+        reliabilityLabel: "Fallback cached",
+        paymentMode: "x402",
+        paymentLabel: "Pay-per-query (x402)"
+      }
     });
 
     providers.push({
@@ -94,7 +102,15 @@ describe("provider pricing", () => {
       latencyEstimateMs: 100,
       qualityScore: 80,
       sourceType: "deterministic-fallback",
-      enabled: true
+      enabled: true,
+      slaBadges: {
+        latencyBand: "fast",
+        latencyLabel: "Fast response",
+        reliabilityBand: "fallback",
+        reliabilityLabel: "Fallback cached",
+        paymentMode: "x402",
+        paymentLabel: "Pay-per-query (x402)"
+      }
     });
 
     const sorted = getSortedProviders();
@@ -121,7 +137,15 @@ describe("provider pricing", () => {
       latencyEstimateMs: 100,
       qualityScore: 50,
       sourceType: "deterministic-fallback",
-      enabled: false
+      enabled: false,
+      slaBadges: {
+        latencyBand: "fast",
+        latencyLabel: "Fast response",
+        reliabilityBand: "fallback",
+        reliabilityLabel: "Fallback cached",
+        paymentMode: "x402",
+        paymentLabel: "Pay-per-query (x402)"
+      }
     });
 
     const sorted = getSortedProviders();
