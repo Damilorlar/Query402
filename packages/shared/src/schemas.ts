@@ -16,7 +16,7 @@ export const slaBadgesSchema = z.object({
   reliabilityBand: reliabilityBandSchema,
   reliabilityLabel: z.string().min(1),
   paymentMode: paymentModeSchema,
-  paymentLabel: z.string().min(1),
+  paymentLabel: z.string().min(1)
 });
 
 export const providerSchema = z.object({
