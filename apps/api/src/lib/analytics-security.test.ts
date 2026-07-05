@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { UsageEvent, PaymentAttempt } from "@query402/shared";
-import { getPublicAnalytics, getDetailedAnalytics } from "../../../src/lib/analytics-service";
+import { getPublicAnalytics, getDetailedAnalytics } from "./analytics-service";
 
 /**
  * Integration tests for security and privacy guarantees
