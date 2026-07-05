@@ -1,5 +1,10 @@
 import type Database from "better-sqlite3";
-import type { AnalyticsSummary, PaymentAttempt, SettlementDigest, UsageEvent } from "@query402/shared";
+import type {
+  AnalyticsSummary,
+  PaymentAttempt,
+  SettlementDigest,
+  UsageEvent
+} from "@query402/shared";
 import { DEFAULT_RECENT_LIMIT, MAX_PAYMENT_ATTEMPTS, MAX_USAGE_EVENTS } from "../constants.js";
 import {
   buildAnalyticsSummary,
@@ -79,7 +84,8 @@ function buildSettlementDigest(payments: PaymentAttempt[]): SettlementDigest {
   const settledPayments = payments.filter((payment) => payment.status === "settled");
   const settledAmountByAssetNetwork = settledPayments.reduce<Record<string, number>>(
     (acc, payment) => {
-      const key = payment.asset && payment.network ? `${payment.asset}:${payment.network}` : payment.network;
+      const key =
+        payment.asset && payment.network ? `${payment.asset}:${payment.network}` : payment.network;
       acc[key] = (acc[key] ?? 0) + payment.amountUsd;
       return acc;
     },

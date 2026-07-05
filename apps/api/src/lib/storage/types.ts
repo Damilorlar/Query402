@@ -1,4 +1,9 @@
-import type { AnalyticsSummary, PaymentAttempt, UsageEvent, SettlementDigest } from "@query402/shared";
+import type {
+  AnalyticsSummary,
+  PaymentAttempt,
+  UsageEvent,
+  SettlementDigest
+} from "@query402/shared";
 
 export interface PaginationOptions {
   limit?: number;

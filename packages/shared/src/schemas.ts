@@ -105,7 +105,6 @@ export const sponsorshipPreviewResponseSchema = z.object({
   reason: z.string().optional()
 });
 
-
 export const settlementDigestSchema = z.object({
   totalPaidRuns: z.number().int().nonnegative(),
   totalSettledAmountUsd: z.number().nonnegative(),
