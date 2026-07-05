@@ -442,13 +442,19 @@ export default function ControlDeckPage() {
                   </div>
                   {provider.slaBadges ? (
                     <div className="provider-badges">
-                      <span className={`badge badge-latency badge-latency-${provider.slaBadges.latencyBand}`}>
+                      <span
+                        className={`badge badge-latency badge-latency-${provider.slaBadges.latencyBand}`}
+                      >
                         {provider.slaBadges.latencyLabel}
                       </span>
-                      <span className={`badge badge-reliability badge-reliability-${provider.slaBadges.reliabilityBand}`}>
+                      <span
+                        className={`badge badge-reliability badge-reliability-${provider.slaBadges.reliabilityBand}`}
+                      >
                         {provider.slaBadges.reliabilityLabel}
                       </span>
-                      <span className={`badge badge-payment badge-payment-${provider.slaBadges.paymentMode}`}>
+                      <span
+                        className={`badge badge-payment badge-payment-${provider.slaBadges.paymentMode}`}
+                      >
                         {provider.slaBadges.paymentLabel}
                       </span>
                     </div>
@@ -685,14 +691,20 @@ export default function ControlDeckPage() {
             {showAnalyticsSkeleton ? (
               <AnalyticsSkeletonRows count={3} />
             ) : !hasUsageHistory ? (
-              <p className="panel-empty-note">
-                No spend recorded yet.
-              </p>
+              <p className="panel-empty-note">No spend recorded yet.</p>
             ) : (
               <ul>
                 {Object.entries(analytics!.spendByPaymentSource).map(([source, amount]) => (
                   <li key={source}>
-                    <span>{source === "demo" ? "Demo" : source === "sponsored" ? "Sponsored" : source === "wallet" ? "Wallet" : source}</span>
+                    <span>
+                      {source === "demo"
+                        ? "Demo"
+                        : source === "sponsored"
+                          ? "Sponsored"
+                          : source === "wallet"
+                            ? "Wallet"
+                            : source}
+                    </span>
                     <strong>{money(amount)}</strong>
                   </li>
                 ))}
