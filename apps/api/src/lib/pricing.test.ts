@@ -289,6 +289,7 @@ describe("provider SLA badges shape", () => {
 });
 
 describe("x402 cross-layer price consistency", () => {
+  // Convert USD to integer micro-USD units to eliminate IEEE 754 float comparison risk.
   function toMicroUsd(value: number): number {
     return Math.round(value * 1_000_000);
   }
@@ -311,6 +312,9 @@ describe("x402 cross-layer price consistency", () => {
     });
   }
 
+  // Cross-layer parity: protectedRouteBasePrices must equal the minimum enabled provider
+  // price for each category. Any drift here means agents are charged a different amount
+  // than the catalog quotes.
   for (const mode of routeModes) {
     it(`route base price "GET /x402/${mode}" matches the minimum catalog price for the "${mode}" category`, async () => {
       const { formatUsdPrice } = await import("./payment-evidence.js");
@@ -391,6 +395,7 @@ describe("x402 cross-layer price consistency", () => {
   it(
     "drift-detection: surfaces offending provider ID when catalog price diverges from route base price",
     () => {
+      // Simulate drift: search.basic raised from $0.01 to $0.05 without updating protectedRouteBasePrices.
       const driftedProviders = providers.map((p) =>
         p.id === "search.basic" ? { ...p, priceUsd: 0.05 } : p
       );
@@ -402,6 +407,8 @@ describe("x402 cross-layer price consistency", () => {
       const baseMicroUsd = toMicroUsd(parseRoutePrice(routeBase));
       const minCategoryMicroUsd = toMicroUsd(Math.min(...searchProviders.map((p) => p.priceUsd)));
 
+      // With search.basic at 0.05, new minimum is search.pro at 0.02 (20000 µ$).
+      // Route base remains $0.01 (10000 µ$) — drift is detected.
       const hasDrift = baseMicroUsd !== minCategoryMicroUsd;
       expect(hasDrift).toBe(true);
 
