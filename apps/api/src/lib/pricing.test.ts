@@ -300,6 +300,7 @@ describe("x402 cross-layer price consistency", () => {
 
   const routeModes = ["search", "news", "scrape"] as const;
 
+  // Per-provider round-trip: priceUsd must survive formatUsdPrice without precision loss.
   for (const provider of providers) {
     it(`provider "${provider.id}" price formatting round-trips without precision loss through formatUsdPrice`, async () => {
       const { formatUsdPrice } = await import("./payment-evidence.js");
