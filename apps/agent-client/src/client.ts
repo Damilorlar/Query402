@@ -130,7 +130,8 @@ export async function runPaidQuery(input: {
     status: response.status,
     ok: response.ok,
     paymentResponse: response.headers.get("payment-response"),
+    id: newNode.id,
     body: json,
     proofLinks
   };
-}
+

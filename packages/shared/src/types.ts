@@ -80,6 +80,8 @@ export interface UsageEvent {
   policyDecision?: string;
   paymentSource?: PaymentSource;
   sponsorPublicKey?: string;
+  priceOutlier?: boolean;
+  priceOutlierReason?: string;
 }
 
 export interface PaymentAttempt {
@@ -124,6 +126,11 @@ export interface AnalyticsSummary {
     fallbackByCategory: Record<QueryMode, number>;
     fallbackReasonCounts: Record<ExecutionFallbackReason, number>;
   };
+  totalDemoQueries: number;
+  totalSettledPayments: number;
+  spendByPaymentSource: Record<string, number>;
+  recentDemoActivity: PaymentAttempt[];
+  recentSettledPayments: PaymentAttempt[];
   recentTransactions: PaymentAttempt[];
   recentUsage: UsageEvent[];
 }
