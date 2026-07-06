@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   CircleDollarSign,
   Clock4,
+  Download,
   Gauge,
   Home,
   Radar,
@@ -710,6 +711,30 @@ export default function ControlDeckPage() {
               )}
             </pre>
           </div>
+
+          <button
+            type="button"
+            className="export-btn"
+            onClick={async () => {
+              try {
+                const resp = await fetch(`${API_BASE_URL}/api/export`);
+                if (!resp.ok) throw new Error("Export failed");
+                const blob = await resp.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `query402-export-${new Date().toISOString().slice(0, 10)}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+              } catch {
+                // silent — export is non-critical
+              }
+            }}
+          >
+            <Download size={14} /> Export JSON
+          </button>
         </aside>
       </main>
     </div>

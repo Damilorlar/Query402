@@ -110,6 +110,66 @@ export async function getAnalyticsSummary(
   return getStorageRepository().getAnalyticsSummary(options);
 }
 
+export interface AnalyticsExport {
+  exportedAt: string;
+  totalQueries: number;
+  totalSpendUsd: number;
+  spendByMode: Record<QueryMode, number>;
+  spendByProvider: Record<string, number>;
+  queryCountByStatus: {
+    demo: number;
+    paid: number;
+    failed: number;
+  };
+  paymentEvidenceCount: number;
+}
+
+export async function getAnalyticsExport(): Promise<AnalyticsExport> {
+  const usage = await getUsageEvents();
+  const payments = await getPaymentAttempts();
+
+  const exportedAt = new Date().toISOString();
+  const totalQueries = usage.length;
+
+  const spendByMode: Record<QueryMode, number> = { search: 0, news: 0, scrape: 0 };
+  const spendByProvider: Record<string, number> = {};
+  const queryCountByStatus = { demo: 0, paid: 0, failed: 0 };
+
+  for (const event of usage) {
+    spendByMode[event.mode] += event.priceUsd;
+    spendByProvider[event.providerId] =
+      (spendByProvider[event.providerId] ?? 0) + event.priceUsd;
+
+    if (event.paymentStatus === "demo-paid") {
+      queryCountByStatus.demo++;
+    } else if (event.paymentStatus === "failed") {
+      queryCountByStatus.failed++;
+    } else {
+      queryCountByStatus.paid++;
+    }
+  }
+
+  const totalSpendUsd = Number(
+    Object.values(spendByMode)
+      .reduce((sum, v) => sum + v, 0)
+      .toFixed(6)
+  );
+
+  const paymentEvidenceCount = payments.filter(
+    (p) => p.transactionHash || p.facilitatorResult || p.evidenceKind
+  ).length;
+
+  return {
+    exportedAt,
+    totalQueries,
+    totalSpendUsd,
+    spendByMode,
+    spendByProvider,
+    queryCountByStatus,
+    paymentEvidenceCount
+  };
+}
+
 export async function persistPaidRequest(input: PersistPaidRequestInput): Promise<void> {
   const payment = buildPaymentAttempt(input);
   const usage = buildUsageEvent(input, {

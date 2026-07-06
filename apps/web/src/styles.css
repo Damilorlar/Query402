@@ -1260,6 +1260,27 @@ body {
   line-height: 1.5;
 }
 
+.export-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.72rem;
+  border: 1px solid rgba(129, 160, 201, 0.24);
+  border-radius: 14px;
+  background: rgba(11, 16, 26, 0.84);
+  color: #8ca0bc;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.export-btn:hover {
+  background: rgba(129, 160, 201, 0.12);
+  color: #e8f2ff;
+}
+
 @media (max-width: 1140px) {
   .landing-hero {
     grid-template-columns: 1fr;

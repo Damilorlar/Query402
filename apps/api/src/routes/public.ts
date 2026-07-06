@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { providers } from "../lib/pricing.js";
-import { getAnalyticsSummary, getUsageEvents } from "../lib/persistence.js";
+import { getAnalyticsExport, getAnalyticsSummary, getUsageEvents } from "../lib/persistence.js";
 import { config, getConfigSnapshot } from "../lib/config.js";
 import { apiVersion } from "../lib/build-metadata.js";
 import { getCatalog } from "../services/query-service.js";
@@ -61,6 +61,15 @@ publicRouter.get("/api/usage", async (req, res, next) => {
         count: usage.length
       }
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+publicRouter.get("/api/export", async (_req, res, next) => {
+  try {
+    const exportData = await getAnalyticsExport();
+    res.json(exportData);
   } catch (error) {
     next(error);
   }
