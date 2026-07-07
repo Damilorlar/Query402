@@ -133,14 +133,16 @@ export interface AnalyticsSummary {
   recentUsage: UsageEvent[];
 }
 
-export interface SettlementDigest {
-  totalPaidRuns: number;
-  totalSettledAmountUsd: number;
-  settledAmountByAssetNetwork: Record<string, number>;
-  withPaymentEvidence: number;
-  missingPaymentEvidence: number;
-  latestPaymentTimestamp: string | null;
-  generatedAt: string;
+export interface ProviderCapability {
+  id: string;
+  name: string;
+  category: ProviderCategory;
+  priceUsd: number;
+  sourceType: SourceType;
+  latencyEstimateMs: number;
+  enabled: boolean;
+  hasFallback: boolean;
+  caveat: string | null;
 }
 
 export interface SponsorshipGrant {
