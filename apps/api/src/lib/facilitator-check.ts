@@ -46,16 +46,13 @@ async function performCheck(): Promise<FacilitatorCheckResult> {
     const timeoutMs = 5000;
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-    const response = await fetch(
-      `${config.X402_FACILITATOR_URL.replace(/\/+$/, "")}/supported`,
-      {
-        method: "GET",
-        signal: controller.signal,
-        headers: config.X402_FACILITATOR_API_KEY
-          ? { Authorization: `Bearer ${config.X402_FACILITATOR_API_KEY}` }
-          : undefined
-      }
-    );
+    const response = await fetch(`${config.X402_FACILITATOR_URL.replace(/\/+$/, "")}/supported`, {
+      method: "GET",
+      signal: controller.signal,
+      headers: config.X402_FACILITATOR_API_KEY
+        ? { Authorization: `Bearer ${config.X402_FACILITATOR_API_KEY}` }
+        : undefined
+    });
 
     clearTimeout(timeout);
 

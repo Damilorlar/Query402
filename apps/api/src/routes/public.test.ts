@@ -123,5 +123,4 @@ describe("public routes", () => {
     expect(catalogResponse.body.byCategory.news.length).toBeGreaterThan(0);
     expect(catalogResponse.body.byCategory.scrape.length).toBeGreaterThan(0);
   });
-
 });

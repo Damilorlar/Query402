@@ -1,8 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  applyApiTestEnv,
-  resetApiTestStorage
-} from "../test/api-test-helpers.js";
+import { applyApiTestEnv, resetApiTestStorage } from "../test/api-test-helpers.js";
 
 describe("facilitator-check", () => {
   let analyticsDbPath: string;
@@ -16,9 +13,7 @@ describe("facilitator-check", () => {
   });
 
   it("returns false in demo mode without making network requests", async () => {
-    const { checkFacilitatorSupported } = await import(
-      "../lib/facilitator-check.js"
-    );
+    const { checkFacilitatorSupported } = await import("../lib/facilitator-check.js");
 
     const result = await checkFacilitatorSupported();
 
@@ -27,9 +22,7 @@ describe("facilitator-check", () => {
   });
 
   it("returns cached false when no API key is configured", async () => {
-    const { checkFacilitatorSupported } = await import(
-      "../lib/facilitator-check.js"
-    );
+    const { checkFacilitatorSupported } = await import("../lib/facilitator-check.js");
 
     const result = await checkFacilitatorSupported();
 
@@ -39,9 +32,8 @@ describe("facilitator-check", () => {
   });
 
   it("clearFacilitatorCache resets cached state", async () => {
-    const { checkFacilitatorSupported, clearFacilitatorCache } = await import(
-      "../lib/facilitator-check.js"
-    );
+    const { checkFacilitatorSupported, clearFacilitatorCache } =
+      await import("../lib/facilitator-check.js");
 
     clearFacilitatorCache();
     await checkFacilitatorSupported();
