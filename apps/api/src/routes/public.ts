@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { getSortedProviders } from "../lib/pricing.js";
+import { buildCapabilityMatrix, getSortedProviders } from "../lib/pricing.js";
 import { getAnalyticsSummary, getUsageEvents } from "../lib/persistence.js";
 import { config, getFacilitatorConfigured } from "../lib/config.js";
 import { apiVersion, buildMetadata } from "../lib/build-metadata.js";
@@ -29,6 +29,7 @@ publicRouter.get("/health", (_req, res) => {
     nodeEnv: config.NODE_ENV,
     network: config.STELLAR_NETWORK,
     sponsorshipEnabled: config.sponsorshipEnabled,
+    demoMode: config.demoMode,
     timestamp: new Date().toISOString(),
     uptimeSeconds: process.uptime()
   });
@@ -64,6 +65,13 @@ publicRouter.get("/api/providers", (_req, res) => {
 
 publicRouter.get("/api/catalog", (_req, res) => {
   res.json(getCatalog());
+});
+
+publicRouter.get("/api/matrix", (_req, res) => {
+  res.json({
+    updatedAt: new Date().toISOString(),
+    providers: buildCapabilityMatrix()
+  });
 });
 
 publicRouter.get("/api/usage", async (req, res, next) => {

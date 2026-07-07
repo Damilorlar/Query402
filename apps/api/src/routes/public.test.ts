@@ -1,5 +1,6 @@
 import express from "express";
 import request from "supertest";
+import { providerCapabilitySchema } from "@query402/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildPaidQueryFixture, buildTestUsageEvent } from "../test/storage-test-helpers.js";
 import { applyApiTestEnv, resetApiTestStorage } from "../test/api-test-helpers.js";
