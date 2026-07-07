@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { providers } from "../lib/pricing.js";
+import { getSortedProviders } from "../lib/pricing.js";
 import { getAnalyticsSummary, getUsageEvents } from "../lib/persistence.js";
 import { config, getFacilitatorConfigured } from "../lib/config.js";
 import { apiVersion, buildMetadata } from "../lib/build-metadata.js";
@@ -59,7 +59,7 @@ publicRouter.get("/api/readiness", async (_req, res) => {
 });
 
 publicRouter.get("/api/providers", (_req, res) => {
-  res.json({ providers });
+  res.json({ providers: getSortedProviders() });
 });
 
 publicRouter.get("/api/catalog", (_req, res) => {
