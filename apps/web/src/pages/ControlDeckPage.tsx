@@ -28,6 +28,7 @@ import {
 } from "../lib/sponsorship.js";
 import { runWalletPaidQuery } from "../lib/x402.js";
 import { WalletSessionMachine, FreighterAdapter, type WalletState } from "../lib/wallet/index.js";
+import PaymentEvidenceBanner from "../components/PaymentEvidenceBanner.js";
 
 const modeLabels: Record<QueryMode, string> = {
   search: "Search",
@@ -578,6 +579,8 @@ export default function ControlDeckPage() {
               <p className="empty-note">Waiting for results. Start a query from the left panel.</p>
             ) : (
               <>
+                <PaymentEvidenceBanner payment={result.payment} />
+
                 <div className="result-meta">
                   <span>{result.result.providerName}</span>
                   <span>{money(result.result.priceUsd)}</span>
