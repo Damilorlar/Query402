@@ -47,6 +47,28 @@ export interface AnalyticsResponse {
     fallbackByCategory: Record<QueryMode, number>;
     fallbackReasonCounts: Record<string, number>;
   };
+  totalDemoQueries: number;
+  totalSettledPayments: number;
+  spendByPaymentSource: Record<string, number>;
+  recentDemoActivity: Array<{
+    id: string;
+    amountUsd: number;
+    endpoint: string;
+    providerId: string;
+    status: string;
+    createdAt: string;
+    paymentSource?: string;
+  }>;
+  recentSettledPayments: Array<{
+    id: string;
+    amountUsd: number;
+    endpoint: string;
+    providerId: string;
+    status: string;
+    createdAt: string;
+    transactionHash?: string;
+    paymentSource?: string;
+  }>;
   recentTransactions: Array<{
     id: string;
     amountUsd: number;
@@ -84,3 +106,18 @@ export interface AnalyticsResponse {
 }
 
 export type ProviderMap = Record<QueryMode, ProviderDefinition[]>;
+
+export interface HealthResponse {
+  ok: boolean;
+  demoMode?: boolean;
+  sponsorshipEnabled?: boolean;
+}
+
+export type EvidenceStatus = "pass" | "warn" | "pending";
+
+export interface EvidenceCheckItem {
+  id: string;
+  label: string;
+  status: EvidenceStatus;
+  detail?: string;
+}
