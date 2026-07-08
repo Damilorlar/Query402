@@ -36,7 +36,9 @@ export function validateUrl(raw: string): UrlPolicyResult {
       return { safe: false, sanitizedUrl: '', error: 'Credentials in URLs are not allowed' };
     }
 
-    const hostname = url.hostname.toLowerCase();
+    // Node's URL.hostname wraps IPv6 addresses in brackets ("[fe80::1]"),
+    // which would bypass the string-prefix checks below.
+    const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
 
     if (BLOCKED_HOSTS.has(hostname) || BLOCKED_CLOUD_META.includes(hostname)) {
       return { safe: false, sanitizedUrl: '', error: 'URL targets a blocked host' };
