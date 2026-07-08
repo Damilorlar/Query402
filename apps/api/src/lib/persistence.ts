@@ -156,8 +156,7 @@ export async function getAnalyticsExport(): Promise<AnalyticsExport> {
 
   for (const event of usage) {
     spendByMode[event.mode] += event.priceUsd;
-    spendByProvider[event.providerId] =
-      (spendByProvider[event.providerId] ?? 0) + event.priceUsd;
+    spendByProvider[event.providerId] = (spendByProvider[event.providerId] ?? 0) + event.priceUsd;
 
     if (event.paymentStatus === "demo-paid") {
       queryCountByStatus.demo++;

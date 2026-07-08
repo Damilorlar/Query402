@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   CircleDollarSign,
   Clock4,
-  Download,
   Gauge,
   Home,
   Radar,
@@ -15,7 +14,6 @@ import {
   Sparkles,
   TerminalSquare,
   Check,
-  AlertTriangle,
   Clock,
   XCircle
 } from "lucide-react";
@@ -153,9 +151,7 @@ export default function ControlDeckPage() {
         id: "receipt",
         label: "Receipt/export available",
         status: hasReceipts ? "pass" : "pending",
-        detail: hasReceipts
-          ? `${analytics!.recentTransactions.length} transaction(s)`
-          : undefined
+        detail: hasReceipts ? `${analytics!.recentTransactions.length} transaction(s)` : undefined
       }
     ];
   }, [providers, result, analytics, demoMode]);
@@ -740,14 +736,20 @@ export default function ControlDeckPage() {
             {showAnalyticsSkeleton ? (
               <AnalyticsSkeletonRows count={3} />
             ) : !hasUsageHistory ? (
-              <p className="panel-empty-note">
-                No spend recorded yet.
-              </p>
+              <p className="panel-empty-note">No spend recorded yet.</p>
             ) : (
               <ul>
                 {Object.entries(analytics!.spendByPaymentSource).map(([source, amount]) => (
                   <li key={source}>
-                    <span>{source === "demo" ? "Demo" : source === "sponsored" ? "Sponsored" : source === "wallet" ? "Wallet" : source}</span>
+                    <span>
+                      {source === "demo"
+                        ? "Demo"
+                        : source === "sponsored"
+                          ? "Sponsored"
+                          : source === "wallet"
+                            ? "Wallet"
+                            : source}
+                    </span>
                     <strong>{money(amount)}</strong>
                   </li>
                 ))}
@@ -1124,9 +1126,7 @@ function EvidenceRow(props: { item: EvidenceCheckItem }) {
   const { item } = props;
   return (
     <li className="evidence-item">
-      <span className={`evidence-icon ${item.status}`}>
-        {evidenceIconMap[item.status]}
-      </span>
+      <span className={`evidence-icon ${item.status}`}>{evidenceIconMap[item.status]}</span>
       <span className="evidence-label">{item.label}</span>
       {item.detail ? <span className="evidence-detail">{item.detail}</span> : null}
     </li>

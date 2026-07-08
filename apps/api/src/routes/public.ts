@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { buildCapabilityMatrix, getSortedProviders } from "../lib/pricing.js";
-import { getAnalyticsSummary, getUsageEvents } from "../lib/persistence.js";
+import { getAnalyticsExport, getAnalyticsSummary, getUsageEvents } from "../lib/persistence.js";
 import { config, getConfigSnapshot } from "../lib/config.js";
 import { apiVersion } from "../lib/build-metadata.js";
 import { getCatalog } from "../services/query-service.js";
