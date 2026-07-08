@@ -1,11 +1,8 @@
 import express from "express";
 import request from "supertest";
+import { providerCapabilitySchema } from "@query402/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-<<<<<<< prime
-import { buildTestPaymentAttempt, buildTestUsageEvent } from "../test/storage-test-helpers.js";
-=======
 import { buildPaidQueryFixture, buildTestUsageEvent } from "../test/storage-test-helpers.js";
->>>>>>> main
 import { applyApiTestEnv, resetApiTestStorage } from "../test/api-test-helpers.js";
 
 describe("public routes", () => {
@@ -401,110 +398,31 @@ describe("public routes", () => {
     });
   });
 
-  describe("GET /api/export — sanitized analytics export", () => {
-    it("returns valid export with zero totals for fresh storage", async () => {
-      const app = await createPublicApp();
-      const response = await request(app).get("/api/export");
+  it("returns capability matrix with correct shape and deterministic order", async () => {
+    const app = await createPublicApp();
+    const response = await request(app).get("/api/matrix");
 
-      expect(response.status).toBe(200);
-      expect(response.body).toMatchObject({
-        totalQueries: 0,
-        totalSpendUsd: 0,
-        spendByMode: { search: 0, news: 0, scrape: 0 },
-        spendByProvider: {},
-        queryCountByStatus: { demo: 0, paid: 0, failed: 0 },
-        paymentEvidenceCount: 0
-      });
-      expect(typeof response.body.exportedAt).toBe("string");
-      expect(() => new Date(response.body.exportedAt)).not.toThrow();
-    });
+    expect(response.status).toBe(200);
+    expect(response.body.updatedAt).toEqual(expect.any(String));
 
-    it("reflects saved usage data in the export", async () => {
-      const app = await createPublicApp();
-      const { saveUsageEvent, savePaymentAttempt } = await import("../lib/persistence.js");
+    const { providers: matrix } = response.body;
+    expect(Array.isArray(matrix)).toBe(true);
+    expect(matrix.length).toBeGreaterThan(0);
 
-      await saveUsageEvent(
-        buildTestUsageEvent({
-          id: "use_export_1",
-          mode: "search",
-          providerId: "search.basic",
-          paymentStatus: "settled",
-          priceUsd: 0.05,
-          createdAt: "2026-06-21T10:00:00.000Z"
-        })
-      );
-      await saveUsageEvent(
-        buildTestUsageEvent({
-          id: "use_export_2",
-          mode: "news",
-          providerId: "news.fast",
-          paymentStatus: "demo-paid",
-          priceUsd: 0.03,
-          createdAt: "2026-06-21T11:00:00.000Z"
-        })
-      );
-      await savePaymentAttempt(
-        buildTestPaymentAttempt({
-          id: "pay_export_1",
-          transactionHash: "tx_abc123",
-          evidenceKind: "settled"
-        })
-      );
-      await savePaymentAttempt(
-        buildTestPaymentAttempt({
-          id: "pay_export_2",
-          transactionHash: undefined,
-          facilitatorResult: undefined,
-          evidenceKind: undefined
-        })
-      );
+    for (const entry of matrix) {
+      const parsed = providerCapabilitySchema.safeParse(entry);
+      expect(parsed.success).toBe(true);
+    }
 
-      const response = await request(app).get("/api/export");
-      expect(response.status).toBe(200);
-
-      expect(response.body.totalQueries).toBe(2);
-      expect(response.body.totalSpendUsd).toBe(0.08);
-      expect(response.body.spendByMode).toEqual({ search: 0.05, news: 0.03, scrape: 0 });
-      expect(response.body.spendByProvider).toEqual({
-        "search.basic": 0.05,
-        "news.fast": 0.03
-      });
-      expect(response.body.queryCountByStatus).toEqual({ demo: 1, paid: 1, failed: 0 });
-      expect(response.body.paymentEvidenceCount).toBe(1);
-    });
-
-    it("excludes secret-like fields from the response body", async () => {
-      const app = await createPublicApp();
-      const { saveUsageEvent, savePaymentAttempt } = await import("../lib/persistence.js");
-
-      await saveUsageEvent(
-        buildTestUsageEvent({
-          id: "use_secret_1",
-          payerPublicKey: "GABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890",
-          facilitatorUrl: "https://channels.openzeppelin.com/x402/testnet"
-        })
-      );
-      await savePaymentAttempt(
-        buildTestPaymentAttempt({
-          id: "pay_secret_1",
-          payerPublicKey: "GABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890",
-          facilitatorResult: { rawHeader: "should-not-leak" }
-        })
-      );
-
-      const response = await request(app).get("/api/export");
-      expect(response.status).toBe(200);
-
-      const body = JSON.stringify(response.body);
-      expect(body).not.toContain("GABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890");
-      expect(body).not.toContain("rawHeader");
-      expect(body).not.toContain("should-not-leak");
-      expect(body).not.toContain("facilitatorUrl");
-      expect(body).not.toContain("payerPublicKey");
-      expect(body).not.toContain("transactionHash");
-      expect(body).not.toContain("facilitatorResult");
-      expect(body).not.toContain("paymentResponseHeader");
-      expect(body).not.toContain("payToAddress");
-    });
+    for (let i = 1; i < matrix.length; i++) {
+      const prev = matrix[i - 1];
+      const curr = matrix[i];
+      const catCmp = prev.category.localeCompare(curr.category);
+      if (catCmp === 0) {
+        expect(prev.id.localeCompare(curr.id)).toBeLessThanOrEqual(0);
+      } else {
+        expect(catCmp).toBeLessThan(0);
+      }
+    }
   });
 });

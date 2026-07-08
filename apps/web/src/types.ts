@@ -19,6 +19,7 @@ export interface PaymentEvidenceSummary {
   payer?: string;
   transactionHash?: string;
   proofLinks: PaymentProofLinks;
+  error?: string;
 }
 
 export interface PaidQueryResponse {
@@ -105,3 +106,18 @@ export interface AnalyticsResponse {
 }
 
 export type ProviderMap = Record<QueryMode, ProviderDefinition[]>;
+
+export interface HealthResponse {
+  ok: boolean;
+  demoMode?: boolean;
+  sponsorshipEnabled?: boolean;
+}
+
+export type EvidenceStatus = "pass" | "warn" | "pending";
+
+export interface EvidenceCheckItem {
+  id: string;
+  label: string;
+  status: EvidenceStatus;
+  detail?: string;
+}
