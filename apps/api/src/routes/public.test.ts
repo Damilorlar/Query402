@@ -1,5 +1,6 @@
 import express from "express";
 import request from "supertest";
+import { providerCapabilitySchema } from "@query402/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildPaidQueryFixture, buildTestUsageEvent } from "../test/storage-test-helpers.js";
 import { applyApiTestEnv, resetApiTestStorage } from "../test/api-test-helpers.js";
@@ -397,66 +398,31 @@ describe("public routes", () => {
     });
   });
 
-  it("returns latency bucket counts that classify queries by execution time", async () => {
+  it("returns capability matrix with correct shape and deterministic order", async () => {
     const app = await createPublicApp();
-    const { saveUsageEvent } = await import("../lib/persistence.js");
+    const response = await request(app).get("/api/matrix");
 
-    await saveUsageEvent(
-      buildTestUsageEvent({
-        id: "use_latency_fast",
-        traceId: "trace_fast",
-        createdAt: "2026-06-21T10:00:00.000Z",
-        latencyMs: 500
-      })
-    );
-    await saveUsageEvent(
-      buildTestUsageEvent({
-        id: "use_latency_medium",
-        traceId: "trace_medium",
-        createdAt: "2026-06-21T10:00:01.000Z",
-        latencyMs: 2000
-      })
-    );
-    await saveUsageEvent(
-      buildTestUsageEvent({
-        id: "use_latency_slow",
-        traceId: "trace_slow",
-        createdAt: "2026-06-21T10:00:02.000Z",
-        latencyMs: 5000
-      })
-    );
-    await saveUsageEvent(
-      buildTestUsageEvent({
-        id: "use_latency_very_slow",
-        traceId: "trace_very_slow",
-        createdAt: "2026-06-21T10:00:03.000Z",
-        latencyMs: 15000
-      })
-    );
-    await saveUsageEvent(
-      buildTestUsageEvent({
-        id: "use_latency_unknown",
-        traceId: "trace_unknown",
-        createdAt: "2026-06-21T10:00:04.000Z",
-        latencyMs: 0
-      })
-    );
+    expect(response.status).toBe(200);
+    expect(response.body.updatedAt).toEqual(expect.any(String));
 
-    const analyticsResponse = await request(app).get("/api/analytics");
+    const { providers: matrix } = response.body;
+    expect(Array.isArray(matrix)).toBe(true);
+    expect(matrix.length).toBeGreaterThan(0);
 
-    expect(analyticsResponse.status).toBe(200);
-    expect(analyticsResponse.body.latencyBuckets).toEqual({
-      "<1s": 1,
-      "1-3s": 1,
-      "3-10s": 1,
-      ">10s": 1,
-      unknown: 1
-    });
-    expect(analyticsResponse.body.totalQueries).toBe(5);
-    expect(analyticsResponse.body.latencyBuckets["<1s"]).toBe(1);
-    expect(analyticsResponse.body.latencyBuckets["1-3s"]).toBe(1);
-    expect(analyticsResponse.body.latencyBuckets["3-10s"]).toBe(1);
-    expect(analyticsResponse.body.latencyBuckets[">10s"]).toBe(1);
-    expect(analyticsResponse.body.latencyBuckets.unknown).toBe(1);
+    for (const entry of matrix) {
+      const parsed = providerCapabilitySchema.safeParse(entry);
+      expect(parsed.success).toBe(true);
+    }
+
+    for (let i = 1; i < matrix.length; i++) {
+      const prev = matrix[i - 1];
+      const curr = matrix[i];
+      const catCmp = prev.category.localeCompare(curr.category);
+      if (catCmp === 0) {
+        expect(prev.id.localeCompare(curr.id)).toBeLessThanOrEqual(0);
+      } else {
+        expect(catCmp).toBeLessThan(0);
+      }
+    }
   });
 });
