@@ -79,6 +79,23 @@ export const config = {
 };
 
 /**
+ * Returns the configured pay-to address, or throws when it is missing.
+ * Paid execution must fail closed: payment requirements, evidence, and
+ * persisted payment attempts must never be generated with an empty pay-to.
+ * Display/diagnostics paths should read the optional value from
+ * getConfigSnapshot() instead.
+ */
+export function requirePayToAddress(): string {
+  const address = config.X402_PAY_TO_ADDRESS;
+  if (!address) {
+    throw new Error(
+      "X402_PAY_TO_ADDRESS is not configured. Refusing to generate payment requirements or evidence without a valid pay-to address."
+    );
+  }
+  return address;
+}
+
+/**
  * A sanitized snapshot of the deployment configuration.
  * Contains only booleans and safe enum values — never secrets, private keys, or auth headers.
  */

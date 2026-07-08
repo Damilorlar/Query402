@@ -7,7 +7,7 @@ import type {
   QueryMode,
   UsageEvent
 } from "@query402/shared";
-import { config } from "./config.js";
+import { config, requirePayToAddress } from "./config.js";
 import { getStorageRepository } from "./storage/index.js";
 import { getProviderById } from "./pricing.js";
 import type {
@@ -50,7 +50,7 @@ function buildPaymentAttempt(
     amountUsd: input.priceUsd,
     network: config.STELLAR_NETWORK,
     payerPublicKey: input.payerPublicKey,
-    payToAddress: config.X402_PAY_TO_ADDRESS ?? "",
+    payToAddress: requirePayToAddress(),
     facilitatorUrl: config.X402_FACILITATOR_URL,
     status: "settled",
     transactionHash: input.paymentResponseHeader ?? undefined,
