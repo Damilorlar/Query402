@@ -37,5 +37,8 @@
     "prettier": "^3.5.3",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.32.1"
+  },
+  "dependencies": {
+    "@rollup/rollup-win32-x64-msvc": "^4.62.2"
   }
 }
