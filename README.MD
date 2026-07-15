@@ -1,5 +1,5 @@
 > [!NOTE]
-> Query402 participates in the Drips Network Stellar Wave program. This public
+> Query402 participates in the Stellar Wave program. This public
 > repository is the canonical workspace for Wave issues and contributions.
 
 <div align="center">
