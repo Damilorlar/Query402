@@ -6,12 +6,6 @@
   <img src="./public/Query402-logo.png" alt="Query402 logo" width="180" />
   <h1>Query402</h1>
   <p><strong>Agentic pay-per-query internet access on Stellar with x402.</strong></p>
-  <p>
-    <a href="https://github.com/emrekayat/Query402/actions/workflows/ci.yml">
-      <img src="https://github.com/emrekayat/Query402/actions/workflows/ci.yml/badge.svg" alt="CI status" />
-    </a>
-  </p>
-</div>
 
 Query402 is a hackathon-ready marketplace-style router where agents can buy `search`, `news`, and `scrape` results per request instead of paying monthly subscriptions.
 
