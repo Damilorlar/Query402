@@ -3,7 +3,7 @@ import { DefaultProviderRegistry } from "./registry.js";
 import { ProviderAdapter } from "./core.js";
 
 // Ensure pricing data exists for our fake tests so getProviderById works
-import { providers } from "../lib/pricing.js";
+import { providers, computeSlaBadge } from "../lib/pricing.js";
 providers.push({
   id: "test.search.live",
   name: "Test Live Search",
@@ -13,7 +13,8 @@ providers.push({
   latencyEstimateMs: 100,
   qualityScore: 90,
   sourceType: "live",
-  enabled: true
+  enabled: true,
+  slaBadge: computeSlaBadge(100, "live")
 });
 providers.push({
   id: "test.search.deterministic",
@@ -24,7 +25,8 @@ providers.push({
   latencyEstimateMs: 100,
   qualityScore: 90,
   sourceType: "deterministic-fallback",
-  enabled: true
+  enabled: true,
+  slaBadge: computeSlaBadge(100, "deterministic-fallback")
 });
 
 class MockAdapter implements ProviderAdapter {
