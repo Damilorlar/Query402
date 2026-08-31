@@ -1,11 +1,13 @@
 import { Router } from "express";
 import { z } from "zod";
 import { buildCapabilityMatrix, getSortedProviders } from "../lib/pricing.js";
-import { getAnalyticsExport, getAnalyticsSummary, getUsageEvents } from "../lib/persistence.js";
-import { config, getConfigSnapshot } from "../lib/config.js";
-import { apiVersion } from "../lib/build-metadata.js";
+import { getAnalyticsSummary, getUsageEvents } from "../lib/persistence.js";
+import { config, getFacilitatorConfigured } from "../lib/config.js";
+import { apiVersion, buildMetadata } from "../lib/build-metadata.js";
 import { getCatalog } from "../services/query-service.js";
 import { MAX_USAGE_EVENTS } from "../lib/storage/constants.js";
+import { isStorageAvailable } from "../lib/storage/index.js";
+import { checkFacilitatorSupported } from "../lib/facilitator-check.js";
 
 export const publicRouter = Router();
 
@@ -29,8 +31,11 @@ publicRouter.get("/health", (_req, res) => {
     sponsorshipEnabled: config.sponsorshipEnabled,
     demoMode: config.demoMode,
     timestamp: new Date().toISOString(),
+
+
     uptimeSeconds: process.uptime(),
     diagnostics: getConfigSnapshot()
+
   });
 });
 
@@ -85,16 +90,11 @@ publicRouter.get("/api/export", async (_req, res, next) => {
 
 publicRouter.get("/api/analytics", async (req, res, next) => {
   try {
-    const parsed = analyticsQuerySchema.safeParse(req.query);
-    if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
-    }
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
+    const cursor = req.query.cursor ? (req.query.cursor as string) : null;
 
-    const analytics = await getAnalyticsSummary({
-      recentUsageLimit: parsed.data.recentUsageLimit,
-      recentPaymentLimit: parsed.data.recentPaymentLimit
-    });
-    res.json(analytics);
+    const result = await fetchPaginatedAnalytics(limit, cursor);
+    return res.json(result);
   } catch (error) {
     next(error);
   }

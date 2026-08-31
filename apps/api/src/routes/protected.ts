@@ -8,7 +8,7 @@ export const protectedRouter = Router();
 protectedRouter.get("/x402/search", async (req, res, next) => {
   const parsed = searchQuerySchema.safeParse(req.query);
   if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.flatten() });
+    return res.status(400).json({ error: parsed.error.flatten(), errorCode: "invalid_query" });
   }
 
   return handlePaidX402Route(req, res, next, {
@@ -29,7 +29,7 @@ protectedRouter.get("/x402/search", async (req, res, next) => {
 protectedRouter.get("/x402/news", async (req, res, next) => {
   const parsed = newsQuerySchema.safeParse(req.query);
   if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.flatten() });
+    return res.status(400).json({ error: parsed.error.flatten(), errorCode: "invalid_query" });
   }
 
   return handlePaidX402Route(req, res, next, {
@@ -50,7 +50,7 @@ protectedRouter.get("/x402/news", async (req, res, next) => {
 protectedRouter.get("/x402/scrape", async (req, res, next) => {
   const parsed = scrapeQuerySchema.safeParse(req.query);
   if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.flatten() });
+    return res.status(400).json({ error: parsed.error.flatten(), errorCode: "invalid_query" });
   }
 
   return handlePaidX402Route(req, res, next, {

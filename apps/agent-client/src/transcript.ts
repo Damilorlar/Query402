@@ -47,9 +47,9 @@ const API_BASE = config.API_BASE_URL.replace(/\/$/, "");
 // Secret redaction
 // ---------------------------------------------------------------------------
 const SECRET_PATTERNS: RegExp[] = [
-  /S[A-Z0-9]{55}/g, // Stellar secret key (starts with S, 56 chars)
-  /Bearer\s+\S+/gi, // Bearer tokens
-  /x-payment:\s*\S+/gi, // raw payment header value
+  /S[A-Z0-9]{55}/g,
+  /Bearer\s+\S+/gi,
+  /x-payment:\s*\S+/gi,
   /X402-Payment:\s*\S+/gi
 ];
 const REDACTED = "[REDACTED]";
@@ -59,7 +59,7 @@ const SENSITIVE_HEADER_KEYS = new Set([
   "x402-payment",
   "authorization",
   "x-api-key",
-  "payment-response" // raw tx ID; replaced with presence flag below
+  "payment-response"
 ]);
 
 const SENSITIVE_OBJ_KEYS = new Set([
@@ -212,9 +212,17 @@ async function step2Catalog(): Promise<Step> {
  */
 async function step3PaidQueries(): Promise<Step[]> {
   const queries: Array<Parameters<typeof runPaidQuery>[0]> = [
-    { mode: "search", provider: "search.pro", query: "latest stellar x402 updates" },
+    {
+      mode: "search",
+      provider: "search.pro",
+      query: "latest stellar x402 updates"
+    },
     { mode: "news", provider: "news.deep", query: "stablecoin micropayments" },
-    { mode: "scrape", provider: "scrape.extract", url: "https://developers.stellar.org" }
+    {
+      mode: "scrape",
+      provider: "scrape.extract",
+      url: "https://developers.stellar.org"
+    }
   ];
 
   const steps: Step[] = [];
@@ -222,7 +230,7 @@ async function step3PaidQueries(): Promise<Step[]> {
   for (let i = 0; i < queries.length; i++) {
     const q = queries[i];
     const timestamp = new Date().toISOString();
-    const label = `3${String.fromCharCode(97 + i)}_demo_paid_${q.mode}`; // 3a_, 3b_, 3c_
+    const label = `3${String.fromCharCode(97 + i)}_demo_paid_${q.mode}`;
 
     try {
       const response = await runPaidQuery(q);
@@ -236,7 +244,6 @@ async function step3PaidQueries(): Promise<Step[]> {
         body: redact({
           provider: q.provider,
           endpoint: response.endpoint,
-          // Never write the raw payment-response header value; record presence only
           payment_response_present: Boolean(response.paymentResponse),
           price_usd: result?.priceUsd ?? "n/a",
           items_returned: Array.isArray(result?.items) ? result.items.length : 0,
@@ -391,7 +398,8 @@ async function main(): Promise<void> {
   console.log(`   JSON : ${json}`);
   console.log(`   TXT  : ${txt}`);
   console.log("");
-  console.log("   Label   : DEMO_MODE  (safe for SCF / Drips / investor notes)");
+  const note = "   Label   : DEMO_MODE  (safe for SCF / Drips / investor notes)";
+  console.log(note);
   console.log("   Secrets : all redacted");
   console.log("   Payment : no real Stellar transaction");
 }
