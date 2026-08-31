@@ -9,7 +9,7 @@ import type { NextFunction, Request, Response } from "express";
 import type { HTTPRequestContext } from "@x402/core/server";
 import type { PaymentPayload } from "@x402/core/types";
 import { getProviderById, protectedRouteBasePrices } from "./pricing.js";
-import { config } from "./config.js";
+import { config, requirePayToAddress } from "./config.js";
 import { buildPaymentDebugMetadata } from "./payment-debug.js";
 import {
   buildDemoPaymentEvidence,
@@ -70,6 +70,17 @@ function clonePaymentPayload(paymentPayload: unknown): PaymentPayload | undefine
 function demoMode402Middleware(req: Request, res: Response, next: NextFunction) {
   if (!req.path.startsWith("/x402/")) {
     return next();
+  }
+
+  // Fail closed: never advertise payment requirements or record demo
+  // evidence with an empty pay-to address.
+  if (!config.X402_PAY_TO_ADDRESS) {
+    return res.status(503).json({
+      error: "Payment configuration missing",
+      demoMode: true,
+      detail:
+        "X402_PAY_TO_ADDRESS is not configured. Paid demo requests are disabled until a pay-to address is set."
+    });
   }
 
   const paidHeader = req.header("x-query402-demo-paid");
@@ -189,6 +200,10 @@ export function createX402Middleware() {
     return demoMode402Middleware;
   }
 
+  // Real paid routes are enabled: fail closed at startup rather than
+  // generating x402 payment requirements with an empty pay-to address.
+  const payTo = requirePayToAddress();
+
   const network = config.STELLAR_NETWORK as `${string}:${string}`;
 
   const createAuthHeaders =
@@ -260,7 +275,7 @@ export function createX402Middleware() {
         scheme: "exact",
         network,
         price: (context: HTTPRequestContext) => resolveRoutePrice(context, "search"),
-        payTo: config.X402_PAY_TO_ADDRESS
+        payTo
       },
       description: "Paid search endpoint on Query402",
       settlementFailedResponseBody
@@ -270,7 +285,7 @@ export function createX402Middleware() {
         scheme: "exact",
         network,
         price: (context: HTTPRequestContext) => resolveRoutePrice(context, "news"),
-        payTo: config.X402_PAY_TO_ADDRESS
+        payTo
       },
       description: "Paid news endpoint on Query402",
       settlementFailedResponseBody
@@ -280,7 +295,7 @@ export function createX402Middleware() {
         scheme: "exact",
         network,
         price: (context: HTTPRequestContext) => resolveRoutePrice(context, "scrape"),
-        payTo: config.X402_PAY_TO_ADDRESS
+        payTo
       },
       description: "Paid scrape endpoint on Query402",
       settlementFailedResponseBody
