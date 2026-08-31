@@ -21,31 +21,30 @@ Sponsored queries require:
 
 ### Assets
 
-| Asset | Risk if compromised |
-|-------|---------------------|
-| `DEMO_CLIENT_SECRET_KEY` | Unlimited x402 settlement from sponsor wallet |
-| `SPONSORSHIP_SIGNING_SECRET` | Forged grants bypassing policy |
-| SQLite sponsorship DB | Budget/nonce/idempotency bypass |
-| Grant + nonce | Single-use spend authorization |
+| Asset                        | Risk if compromised                           |
+| ---------------------------- | --------------------------------------------- |
+| `DEMO_CLIENT_SECRET_KEY`     | Unlimited x402 settlement from sponsor wallet |
+| `SPONSORSHIP_SIGNING_SECRET` | Forged grants bypassing policy                |
+| SQLite sponsorship DB        | Budget/nonce/idempotency bypass               |
+| Grant + nonce                | Single-use spend authorization                |
 
 ### Threats & Mitigations
 
-| Threat | Description | Mitigation |
-|--------|-------------|------------|
-| **Public faucet** | Anyone triggers server-paid queries | `SPONSORSHIP_ENABLED` gate; grant required; wallet challenge |
-| **Replay** | Reuse grant or idempotency key to double-spend | Single-use nonce (atomic INSERT); idempotency lock + cache |
-| **Budget drain** | Attacker exhausts sponsor funds | Per-wallet + global daily USD caps; grant `maxAmountUsd`; price check vs catalog |
-| **Wrong wallet** | Spend grant issued to wallet A from wallet B | Grant `wallet` must match request body |
-| **Wrong network** | Testnet grant used on pubnet config | Grant `network` must match `STELLAR_NETWORK` |
-| **Provider abuse** | Expensive provider under cheap grant | Optional grant `mode` / `providerId`; `getProviderById` price ceiling |
-| **Expired grant** | Stale authorization | `expiresAt` enforced in policy |
-| **Concurrent race** | Parallel requests bypass budget | `BEGIN IMMEDIATE` budget reservation; idempotency `INSERT OR IGNORE` lock |
-| **Storage outage** | Silent allow on DB failure | Fail closed → `503 sponsorship_storage_unavailable` |
+| Threat              | Description                                    | Mitigation                                                                       |
+| ------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------- |
+| **Public faucet**   | Anyone triggers server-paid queries            | `SPONSORSHIP_ENABLED` gate; grant required; wallet challenge                     |
+| **Replay**          | Reuse grant or idempotency key to double-spend | Single-use nonce (atomic INSERT); idempotency lock + cache                       |
+| **Budget drain**    | Attacker exhausts sponsor funds                | Per-wallet + global daily USD caps; grant `maxAmountUsd`; price check vs catalog |
+| **Wrong wallet**    | Spend grant issued to wallet A from wallet B   | Grant `wallet` must match request body                                           |
+| **Wrong network**   | Testnet grant used on pubnet config            | Grant `network` must match `STELLAR_NETWORK`                                     |
+| **Provider abuse**  | Expensive provider under cheap grant           | Optional grant `mode` / `providerId`; `getProviderById` price ceiling            |
+| **Expired grant**   | Stale authorization                            | `expiresAt` enforced in policy                                                   |
+| **Concurrent race** | Parallel requests bypass budget                | `BEGIN IMMEDIATE` budget reservation; idempotency `INSERT OR IGNORE` lock        |
+| **Storage outage**  | Silent allow on DB failure                     | Fail closed → `503 sponsorship_storage_unavailable`                              |
 
 ### Out of Scope (by design)
 
 - Unlimited public faucet
-- Full migration of analytics `db.json` to SQLite
 - Production mainnet deployment
 - On-chain per-query wallet settlement (wallet-paid path uses x402 directly)
 
@@ -81,12 +80,12 @@ Sponsored queries require:
 └─────────────────────────────────────────────────────────────┘
 ```
 
-| Role | Key / artifact | Trust |
-|------|----------------|-------|
-| **User wallet** | Stellar public key + Freighter signature | Proves control of `G...` at grant time (SEP-53) |
-| **Grant signer** | `SPONSORSHIP_SIGNING_SECRET` | Server-only; binds grant fields; never sent to client |
-| **Sponsor / settler** | `DEMO_CLIENT_SECRET_KEY` | Pays x402 invoices; separate from user wallet |
-| **Verifier** | Policy + SQLite | Enforces bounds before sponsor key is used |
+| Role                  | Key / artifact                           | Trust                                                 |
+| --------------------- | ---------------------------------------- | ----------------------------------------------------- |
+| **User wallet**       | Stellar public key + Freighter signature | Proves control of `G...` at grant time (SEP-53)       |
+| **Grant signer**      | `SPONSORSHIP_SIGNING_SECRET`             | Server-only; binds grant fields; never sent to client |
+| **Sponsor / settler** | `DEMO_CLIENT_SECRET_KEY`                 | Pays x402 invoices; separate from user wallet         |
+| **Verifier**          | Policy + SQLite                          | Enforces bounds before sponsor key is used            |
 
 **Payment evidence** records `sponsorshipGrantId`, `policyDecision`, `paymentSource: "sponsored"`, and `sponsorPublicKey` (from `DEMO_CLIENT_PUBLIC_KEY`). Secrets and grant signatures are **never** persisted.
 
@@ -121,18 +120,18 @@ Policy order (fail fast):
 
 ## Environment Variables
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `SPONSORSHIP_ENABLED` | `false` | Kill switch (fail closed) |
-| `SPONSORSHIP_SIGNING_SECRET` | — | HMAC grant signing (required when enabled) |
-| `SPONSORSHIP_GLOBAL_DAILY_BUDGET_USD` | `10` | Global daily spend cap |
-| `SPONSORSHIP_PER_WALLET_DAILY_BUDGET_USD` | `1` | Per-wallet daily cap |
-| `SPONSORSHIP_RATE_LIMIT_PER_MINUTE` | `10` | Reserved for future rate limiting |
-| `SPONSORSHIP_GRANT_TTL_SECONDS` | `300` | Grant lifetime |
-| `SPONSORSHIP_CHALLENGE_TTL_SECONDS` | `60` | Challenge lifetime |
-| `SPONSORSHIP_DB_PATH` | `apps/api/data/sponsorship.db` | SQLite path |
-| `DEMO_CLIENT_SECRET_KEY` | — | Sponsor settlement key |
-| `DEMO_CLIENT_PUBLIC_KEY` | — | Recorded in evidence as `sponsorPublicKey` |
+| Variable                                  | Default                        | Purpose                                    |
+| ----------------------------------------- | ------------------------------ | ------------------------------------------ |
+| `SPONSORSHIP_ENABLED`                     | `false`                        | Kill switch (fail closed)                  |
+| `SPONSORSHIP_SIGNING_SECRET`              | —                              | HMAC grant signing (required when enabled) |
+| `SPONSORSHIP_GLOBAL_DAILY_BUDGET_USD`     | `10`                           | Global daily spend cap                     |
+| `SPONSORSHIP_PER_WALLET_DAILY_BUDGET_USD` | `1`                            | Per-wallet daily cap                       |
+| `SPONSORSHIP_RATE_LIMIT_PER_MINUTE`       | `10`                           | Reserved for future rate limiting          |
+| `SPONSORSHIP_GRANT_TTL_SECONDS`           | `300`                          | Grant lifetime                             |
+| `SPONSORSHIP_CHALLENGE_TTL_SECONDS`       | `60`                           | Challenge lifetime                         |
+| `SPONSORSHIP_DB_PATH`                     | `apps/api/data/sponsorship.db` | SQLite path                                |
+| `DEMO_CLIENT_SECRET_KEY`                  | —                              | Sponsor settlement key                     |
+| `DEMO_CLIENT_PUBLIC_KEY`                  | —                              | Recorded in evidence as `sponsorPublicKey` |
 
 `/health` exposes `sponsorshipEnabled` for the web UI to disable the Sponsored button.
 
@@ -170,18 +169,18 @@ No code deploy required if env is injected at runtime.
 
 ## Fail-Closed Behavior
 
-| Condition | HTTP | `decision` / `error` |
-|-----------|------|----------------------|
-| Sponsorship disabled | `503` | `denied_sponsorship_disabled` |
-| SQLite unavailable | `503` | `denied_storage_unavailable` |
-| Invalid / tampered grant | `403` | `denied_invalid_grant` |
-| Wallet / network / provider mismatch | `403` | `denied_wrong_*` |
-| Grant expired | `403` | `denied_expired` |
-| Price > grant max | `403` | `denied_price_exceeded` |
-| Nonce replay | `409` | `nonce_replay` |
-| Budget exceeded | `429` | `*_budget_exceeded` |
-| Idempotency in progress | `409` | `idempotency_in_progress` |
-| Idempotency cache hit | `200` | cached body (no second spend) |
+| Condition                            | HTTP  | `decision` / `error`          |
+| ------------------------------------ | ----- | ----------------------------- |
+| Sponsorship disabled                 | `503` | `denied_sponsorship_disabled` |
+| SQLite unavailable                   | `503` | `denied_storage_unavailable`  |
+| Invalid / tampered grant             | `403` | `denied_invalid_grant`        |
+| Wallet / network / provider mismatch | `403` | `denied_wrong_*`              |
+| Grant expired                        | `403` | `denied_expired`              |
+| Price > grant max                    | `403` | `denied_price_exceeded`       |
+| Nonce replay                         | `409` | `nonce_replay`                |
+| Budget exceeded                      | `429` | `*_budget_exceeded`           |
+| Idempotency in progress              | `409` | `idempotency_in_progress`     |
+| Idempotency cache hit                | `200` | cached body (no second spend) |
 
 Default for new deployments: **`SPONSORSHIP_ENABLED=false`** until secrets and limits are configured.
 
@@ -219,7 +218,7 @@ SQLite tables (see `apps/api/src/lib/sponsorship/store.ts`):
 - `sponsorship_nonces` — one row per consumed grant nonce
 - `idempotency_keys` — `Idempotency-Key` → cached response
 
-Analytics usage remains in `apps/api/data/db.json`; only sponsorship enforcement uses SQLite.
+Analytics usage is stored in `ANALYTICS_DB_PATH` (SQLite). Sponsorship enforcement uses a separate SQLite file at `SPONSORSHIP_DB_PATH`. See [analytics-storage.md](./analytics-storage.md) for backup and restore.
 
 **Backup**: Copy `SPONSORSHIP_DB_PATH` for audit; loss forces fail-closed `503` until restored or file recreated (budget counters reset).
 

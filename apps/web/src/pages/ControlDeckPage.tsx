@@ -1,12 +1,44 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import type { ProviderDefinition, QueryMode } from "@query402/shared";
-import { Activity, CircleDollarSign, Gauge, Home, Radar, ReceiptText, Sparkles, TerminalSquare } from "lucide-react";
+import type { ProviderDefinition, QueryMode, SponsorshipPreview } from "@query402/shared";
+import {
+  Activity,
+  AlertTriangle,
+  Check,
+  CheckCircle2,
+  CircleDollarSign,
+  Clock4,
+  Copy,
+  Download,
+  Gauge,
+  Home,
+  Radar,
+  ReceiptText,
+  ShieldCheck,
+  Sparkles,
+  TerminalSquare,
+  Check,
+  AlertTriangle,
+  Clock,
+  XCircle
+} from "lucide-react";
 import { Link } from "react-router-dom";
-import type { AnalyticsResponse, PaidQueryResponse } from "../types.js";
-import { API_BASE_URL, fetchJson, money } from "../lib/api.js";
-import { fetchSponsorshipEnabled, runSponsoredPaidQuery } from "../lib/sponsorship.js";
+import type { AnalyticsResponse, EvidenceCheckItem, PaidQueryResponse } from "../types.js";
+import { API_BASE_URL, fetchHealth, fetchJson, money } from "../lib/api.js";
+import {
+  fetchSponsorshipEnabled,
+  fetchSponsorshipPreview,
+  runSponsoredPaidQuery
+} from "../lib/sponsorship.js";
 import { runWalletPaidQuery } from "../lib/x402.js";
+import {
+  buildReceipt,
+  copyReceiptToClipboard,
+  downloadReceipt,
+  type ReceiptPaymentMode,
+  receiptFilename
+} from "../lib/receipt.js";
 import { WalletSessionMachine, FreighterAdapter, type WalletState } from "../lib/wallet/index.js";
+import PaymentEvidenceBanner from "../components/PaymentEvidenceBanner.js";
 
 const modeLabels: Record<QueryMode, string> = {
   search: "Search",
@@ -32,7 +64,7 @@ export default function ControlDeckPage() {
   const [mode, setMode] = useState<QueryMode>("search");
   const [paymentMode, setPaymentMode] = useState<"wallet" | "sponsored">("wallet");
   const [walletState, setWalletState] = useState<WalletState>({ status: "disconnected" });
-  
+
   const walletMachine = useMemo(() => {
     const machine = new WalletSessionMachine("Test SDF Network ; September 2015");
     machine.setAdapter(new FreighterAdapter());
@@ -48,9 +80,14 @@ export default function ControlDeckPage() {
   const [selectedProvider, setSelectedProvider] = useState<string>(modeDefaultProvider.search);
   const [result, setResult] = useState<PaidQueryResponse | null>(null);
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
+  const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sponsorshipEnabled, setSponsorshipEnabled] = useState(false);
+  const [preview, setPreview] = useState<SponsorshipPreview | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [demoMode, setDemoMode] = useState(false);
 
   const modeProviders = useMemo(
     () => providers.filter((provider) => provider.category === mode && provider.enabled),
@@ -64,8 +101,73 @@ export default function ControlDeckPage() {
 
   const activeInput = mode === "scrape" ? urlInput : queryInput;
   const walletConnected = walletState.status === "connected";
-  const estimatedTokenAmount = selectedProviderDetails?.priceUsd.toFixed(TOKEN_DECIMALS) ?? "0.0000000";
-  const estimatedTokenBaseUnits = selectedProviderDetails ? toTokenBaseUnits(selectedProviderDetails.priceUsd) : "0";
+  const estimatedTokenAmount =
+    selectedProviderDetails?.priceUsd.toFixed(TOKEN_DECIMALS) ?? "0.0000000";
+  const estimatedTokenBaseUnits = selectedProviderDetails
+    ? toTokenBaseUnits(selectedProviderDetails.priceUsd)
+    : "0";
+
+  const evidenceItems: EvidenceCheckItem[] = useMemo(() => {
+    const resultOk = result !== null;
+    const resultHasItems = (result?.result?.items?.length ?? 0) > 0;
+    const paymentCaptured = result?.payment?.paymentResponseHeader != null;
+    const hasUsage = (analytics?.totalQueries ?? 0) > 0;
+    const hasSpend = (analytics?.totalSpendUsd ?? 0) > 0;
+    const hasReceipts = (analytics?.recentTransactions?.length ?? 0) > 0;
+
+    return [
+      {
+        id: "catalog",
+        label: "Provider catalog loaded",
+        status: providers.length > 0 ? "pass" : "pending",
+        detail: providers.length > 0 ? `${providers.length} providers` : undefined
+      },
+      {
+        id: "query-exec",
+        label: "Paid/demo query executed",
+        status: resultOk ? "pass" : "pending",
+        detail: resultOk ? result!.result.providerName : undefined
+      },
+      {
+        id: "result",
+        label: "Result returned",
+        status: resultOk ? (resultHasItems ? "pass" : "warn") : "pending",
+        detail: resultOk
+          ? `${result!.result.items.length} items, ${result!.result.latencyMs}ms`
+          : undefined
+      },
+      {
+        id: "payment",
+        label: "Payment evidence captured",
+        status: paymentCaptured ? "pass" : "pending",
+        detail: paymentCaptured
+          ? demoMode
+            ? "demo tx (DEMO_MODE)"
+            : result!.payment.paymentResponseHeader!.slice(0, 16) + "..."
+          : undefined
+      },
+      {
+        id: "usage",
+        label: "Usage event persisted",
+        status: hasUsage ? "pass" : "pending",
+        detail: hasUsage ? `${analytics!.totalQueries} total` : undefined
+      },
+      {
+        id: "analytics",
+        label: "Analytics updated",
+        status: hasSpend ? "pass" : "pending",
+        detail: hasSpend ? money(analytics!.totalSpendUsd) + " tracked" : undefined
+      },
+      {
+        id: "receipt",
+        label: "Receipt/export available",
+        status: hasReceipts ? "pass" : "pending",
+        detail: hasReceipts
+          ? `${analytics!.recentTransactions.length} transaction(s)`
+          : undefined
+      }
+    ];
+  }, [providers, result, analytics, demoMode]);
 
   function shortAddress(address: string) {
     if (address.length < 12) {
@@ -89,24 +191,96 @@ export default function ControlDeckPage() {
   }
 
   async function refreshMetrics() {
-    const data = await fetchJson<AnalyticsResponse>(`${API_BASE_URL}/api/analytics`);
-    setAnalytics(data);
+    setIsAnalyticsLoading(true);
+    try {
+      const data = await fetchJson<AnalyticsResponse>(`${API_BASE_URL}/api/analytics`);
+      setAnalytics(data);
+    } finally {
+      setIsAnalyticsLoading(false);
+    }
   }
+
+  const showAnalyticsSkeleton = isAnalyticsLoading && analytics === null;
+  const hasUsageHistory = (analytics?.totalQueries ?? 0) > 0;
+
+  type ReceiptFeedback = { kind: "copied" | "downloaded"; at: number } | null;
+  const [receiptFeedback, setReceiptFeedback] = useState<ReceiptFeedback>(null);
+
+  const receipt = useMemo(() => {
+    if (!result) {
+      return null;
+    }
+    return buildReceipt({ response: result, userPaymentMode: paymentMode });
+  }, [result, paymentMode]);
+
+  useEffect(() => {
+    if (!receiptFeedback) {
+      return;
+    }
+    const timer = window.setTimeout(() => setReceiptFeedback(null), 2400);
+    return () => window.clearTimeout(timer);
+  }, [receiptFeedback]);
+
+  function exportReceipt() {
+    if (!receipt) {
+      setError("Run a paid query before exporting a receipt");
+      return;
+    }
+    try {
+      downloadReceipt(receipt);
+      setReceiptFeedback({ kind: "downloaded", at: Date.now() });
+    } catch (exportError) {
+      setError(
+        exportError instanceof Error ? exportError.message : "Failed to export receipt"
+      );
+    }
+  }
+
+  async function copyReceipt() {
+    if (!receipt) {
+      setError("Run a paid query before copying a receipt");
+      return;
+    }
+    try {
+      const copyResult = await copyReceiptToClipboard(receipt);
+      if (!copyResult.ok) {
+        setError("Could not copy receipt to clipboard");
+        return;
+      }
+      setReceiptFeedback({ kind: "copied", at: Date.now() });
+    } catch (copyError) {
+      setError(copyError instanceof Error ? copyError.message : "Failed to copy receipt");
+    }
+  }
+
+  const receiptBadgeLabel: Record<ReceiptPaymentMode, string> = {
+    wallet: "Wallet",
+    sponsored: "Sponsored",
+    demo: "Demo"
+  };
+
+  const receiptHintForCurrent = result
+    ? `Share this receipt in the SCF issue thread to prove the ${receipt?.payment.mode ?? "wallet"} payment trail.`
+    : null;
 
   useEffect(() => {
     async function bootstrap() {
-      const [providersResponse, sponsorshipActive] = await Promise.all([
+      const [providersResponse, sponsorshipActive, health] = await Promise.all([
         fetchJson<{ providers: ProviderDefinition[] }>(`${API_BASE_URL}/api/providers`),
-        fetchSponsorshipEnabled(API_BASE_URL)
+        fetchSponsorshipEnabled(API_BASE_URL),
+        fetchHealth(API_BASE_URL)
       ]);
       setProviders(providersResponse.providers);
       setSelectedProvider(modeDefaultProvider.search);
       setSponsorshipEnabled(sponsorshipActive);
+      setDemoMode(health.demoMode ?? false);
       await refreshMetrics();
     }
 
     bootstrap().catch((bootstrapError) => {
-      setError(bootstrapError instanceof Error ? bootstrapError.message : "Failed to load API data");
+      setError(
+        bootstrapError instanceof Error ? bootstrapError.message : "Failed to load API data"
+      );
     });
   }, []);
 
@@ -128,6 +302,59 @@ export default function ControlDeckPage() {
       setPaymentMode("wallet");
     }
   }, [sponsorshipEnabled, paymentMode]);
+
+  // Preview the sponsorship grant status whenever the sponsored path is active
+  // and the relevant inputs change. Aborts in-flight requests so rapid toggling
+  // of mode/provider does not surface stale state.
+  useEffect(() => {
+    if (paymentMode !== "sponsored" || !walletConnected || !sponsorshipEnabled) {
+      setPreview(null);
+      setPreviewError(null);
+      setIsPreviewLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setIsPreviewLoading(true);
+    setPreviewError(null);
+
+    fetchSponsorshipPreview({
+      apiBaseUrl: API_BASE_URL,
+      wallet: walletState.address!,
+      mode,
+      provider: selectedProvider,
+      signal: controller.signal
+    })
+      .then((result) => {
+        if (!controller.signal.aborted) {
+          setPreview(result);
+        }
+      })
+      .catch((err: unknown) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+        setPreview(null);
+        if (err instanceof Error && err.name === "AbortError") {
+          return;
+        }
+        setPreviewError(err instanceof Error ? err.message : "Grant preview unavailable");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setIsPreviewLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [
+    paymentMode,
+    walletConnected,
+    sponsorshipEnabled,
+    walletState.address,
+    mode,
+    selectedProvider
+  ]);
 
   async function runPaidQuery() {
     setIsLoading(true);
@@ -163,10 +390,10 @@ export default function ControlDeckPage() {
       if (runError instanceof Error) {
         setError(runError.message);
         if (runError.message.toLowerCase().includes("reject")) {
-           // Normalize rejection
-           setError("Transaction rejected by user");
+          // Normalize rejection
+          setError("Transaction rejected by user");
         } else {
-           setError("Query failed");
+          setError("Query failed");
         }
       }
     } finally {
@@ -185,7 +412,10 @@ export default function ControlDeckPage() {
             <Sparkles size={13} /> Query402 Control Deck
           </p>
           <h1>Agentic internet access, paid per request.</h1>
-          <p className="subtitle">On Stellar testnet, pick a provider through the x402 flow, pay per query, and audit the trace instantly.</p>
+          <p className="subtitle">
+            On Stellar testnet, pick a provider through the x402 flow, pay per query, and audit the
+            trace instantly.
+          </p>
           <Link className="ghost-btn topbar-link" to="/">
             <Home size={14} /> Back to landing
           </Link>
@@ -202,19 +432,58 @@ export default function ControlDeckPage() {
               >
                 {walletState.status === "connecting" ? "Connecting..." : "Connect Wallet"}
               </button>
-              <button type="button" className="wallet-btn ghost" onClick={disconnectWallet} disabled={!walletConnected}>
+              <button
+                type="button"
+                className="wallet-btn ghost"
+                onClick={disconnectWallet}
+                disabled={!walletConnected}
+              >
                 Disconnect
               </button>
               <span className={walletConnected ? "wallet-status connected" : "wallet-status"}>
-                {walletConnected ? `Connected: ${shortAddress(walletState.address!)}` : walletState.status}
+                {walletConnected
+                  ? `Connected: ${shortAddress(walletState.address!)}`
+                  : walletState.status}
               </span>
             </div>
           </div>
 
-          <StatTile label="Queries" value={String(analytics?.totalQueries ?? 0)} icon={<Activity size={16} />} />
-          <StatTile label="Spend" value={money(analytics?.totalSpendUsd ?? 0)} icon={<CircleDollarSign size={16} />} />
-          <StatTile label="Search" value={money(analytics?.spendByCategory.search ?? 0)} icon={<Radar size={16} />} />
-          <StatTile label="News" value={money(analytics?.spendByCategory.news ?? 0)} icon={<ReceiptText size={16} />} />
+          <StatTile
+            label="Queries"
+            value={String(analytics?.totalQueries ?? 0)}
+            icon={<Activity size={16} />}
+            isLoading={showAnalyticsSkeleton}
+          />
+          <StatTile
+            label="Demo Q"
+            value={String(analytics?.totalDemoQueries ?? 0)}
+            icon={<Sparkles size={16} />}
+            isLoading={showAnalyticsSkeleton}
+          />
+          <StatTile
+            label="Settled"
+            value={String(analytics?.totalSettledPayments ?? 0)}
+            icon={<CircleDollarSign size={16} />}
+            isLoading={showAnalyticsSkeleton}
+          />
+          <StatTile
+            label="Spend"
+            value={money(analytics?.totalSpendUsd ?? 0)}
+            icon={<CircleDollarSign size={16} />}
+            isLoading={showAnalyticsSkeleton}
+          />
+          <StatTile
+            label="Search"
+            value={money(analytics?.spendByCategory.search ?? 0)}
+            icon={<Radar size={16} />}
+            isLoading={showAnalyticsSkeleton}
+          />
+          <StatTile
+            label="News"
+            value={money(analytics?.spendByCategory.news ?? 0)}
+            icon={<ReceiptText size={16} />}
+            isLoading={showAnalyticsSkeleton}
+          />
         </div>
       </header>
 
@@ -241,16 +510,26 @@ export default function ControlDeckPage() {
           <div className="input-shell">
             <label>{mode === "scrape" ? "TARGET URL" : "RESEARCH QUERY"}</label>
             {mode === "scrape" ? (
-              <input value={urlInput} onChange={(event) => setUrlInput(event.target.value)} placeholder="https://example.com" />
+              <input
+                value={urlInput}
+                onChange={(event) => setUrlInput(event.target.value)}
+                placeholder="https://example.com"
+              />
             ) : (
-              <input value={queryInput} onChange={(event) => setQueryInput(event.target.value)} placeholder="latest stellar x402 updates" />
+              <input
+                value={queryInput}
+                onChange={(event) => setQueryInput(event.target.value)}
+                placeholder="latest stellar x402 updates"
+              />
             )}
 
             <label>PAYMENT MODE (Hackathon)</label>
             <div className="payment-mode-switch">
               <button
                 type="button"
-                className={paymentMode === "sponsored" ? "payment-mode-btn active" : "payment-mode-btn"}
+                className={
+                  paymentMode === "sponsored" ? "payment-mode-btn active" : "payment-mode-btn"
+                }
                 onClick={() => setPaymentMode("sponsored")}
                 disabled={!walletConnected || !sponsorshipEnabled}
               >
@@ -258,7 +537,9 @@ export default function ControlDeckPage() {
               </button>
               <button
                 type="button"
-                className={paymentMode === "wallet" ? "payment-mode-btn active" : "payment-mode-btn"}
+                className={
+                  paymentMode === "wallet" ? "payment-mode-btn active" : "payment-mode-btn"
+                }
                 onClick={() => setPaymentMode("wallet")}
                 disabled={!walletConnected}
               >
@@ -266,49 +547,92 @@ export default function ControlDeckPage() {
               </button>
             </div>
             <p className="wallet-hint">
-              Sponsored mode requires wallet connection for ownership proof and an enabled sponsorship policy on the API.
+              Sponsored mode requires wallet connection for ownership proof and an enabled
+              sponsorship policy on the API.
               {!sponsorshipEnabled ? " Sponsorship is currently disabled on the API." : null}
             </p>
           </div>
 
           <div className="provider-strip">
-            {modeProviders.map((provider, index) => (
-              <button
-                key={provider.id}
-                onClick={() => setSelectedProvider(provider.id)}
-                className={provider.id === selectedProvider ? "provider-card selected" : "provider-card"}
-                style={{ animationDelay: `${index * 70}ms` }}
-                type="button"
-              >
-                <p className="provider-name">{provider.name}</p>
-                <p className="provider-desc">{provider.description}</p>
-                <div className="provider-metrics">
-                  <span>{money(provider.priceUsd)}</span>
-                  <span>{provider.latencyEstimateMs}ms</span>
-                  <span>Q{provider.qualityScore}</span>
-                  <span className={`source-badge ${provider.sourceType}`}>{provider.sourceType}</span>
-                </div>
-              </button>
-            ))}
+            {modeProviders.length === 0 ? (
+              <p className="empty-note" style={{ margin: "1rem" }}>
+                No providers enabled for {modeLabels[mode]} mode.
+              </p>
+            ) : (
+              modeProviders.map((provider, index) => (
+                <button
+                  key={provider.id}
+                  onClick={() => setSelectedProvider(provider.id)}
+                  className={
+                    provider.id === selectedProvider ? "provider-card selected" : "provider-card"
+                  }
+                  style={{ animationDelay: `${index * 70}ms` }}
+                  type="button"
+                >
+                  <p className="provider-name">{provider.name}</p>
+                  <p className="provider-desc">{provider.description}</p>
+                  <div className="provider-metrics">
+                    <span>{money(provider.priceUsd)}</span>
+                    <span>{provider.latencyEstimateMs}ms</span>
+                    <span>Q{provider.qualityScore}</span>
+                    <span className={`source-badge ${provider.sourceType}`}>
+                      {provider.sourceType}
+                    </span>
+                  </div>
+                </button>
+              ))
+            )}
           </div>
 
           <div className="action-row preflight">
             <div>
               <p className="action-label">Provider lock</p>
               <p className="action-value">{selectedProviderDetails?.name ?? "Choose provider"}</p>
-              <p className="action-label">Mode: {paymentMode === "sponsored" ? "Sponsored" : "Wallet"}</p>
+              <p className="action-label">
+                Mode: {paymentMode === "sponsored" ? "Sponsored" : "Wallet"}
+              </p>
             </div>
             <div className="preflight-details">
-              <p className="action-label">Network: <strong>{walletState.network ?? 'Test SDF Network ; September 2015'}</strong></p>
-              <p className="action-label">Asset: <strong>{TOKEN_SYMBOL}</strong></p>
-              <p className="action-label">Amount: <strong>{estimatedTokenAmount}</strong> ({estimatedTokenBaseUnits} base units)</p>
-              <p className="action-label">Pay-to: <strong>dynamic via x402</strong></p>
+              <p className="action-label">
+                Network:{" "}
+                <strong>{walletState.network ?? "Test SDF Network ; September 2015"}</strong>
+              </p>
+              <p className="action-label">
+                Asset: <strong>{TOKEN_SYMBOL}</strong>
+              </p>
+              <p className="action-label">
+                Amount: <strong>{estimatedTokenAmount}</strong> ({estimatedTokenBaseUnits} base
+                units)
+              </p>
+              <p className="action-label">
+                Pay-to: <strong>dynamic via x402</strong>
+              </p>
             </div>
-            <button className="run-btn" onClick={runPaidQuery} disabled={isLoading || walletState.status === "signing" || !selectedProvider || !walletConnected} type="button">
+            <button
+              className="run-btn"
+              onClick={runPaidQuery}
+              disabled={
+                isLoading ||
+                walletState.status === "signing" ||
+                !selectedProviderDetails ||
+                !walletConnected
+              }
+              type="button"
+            >
               {isLoading || walletState.status === "signing" ? "Executing..." : "Run paid query"}
               <TerminalSquare size={16} />
             </button>
           </div>
+
+          {paymentMode === "sponsored" && walletConnected && sponsorshipEnabled ? (
+            <SponsorshipPreviewPanel
+              preview={preview}
+              loading={isPreviewLoading}
+              error={previewError}
+              providerName={selectedProviderDetails?.name ?? selectedProvider}
+              walletAddress={walletState.address}
+            />
+          ) : null}
 
           {walletState.error && <p className="error-box">Wallet Error: {walletState.error}</p>}
           {error ? <p className="error-box">{error}</p> : null}
@@ -316,34 +640,103 @@ export default function ControlDeckPage() {
           <div className="result-zone sweep">
             <div className="bay-head bay-head--compact">
               <h2>Signal Output</h2>
-              <span>{result ? new Date(result.result.timestamp).toLocaleTimeString() : "waiting"}</span>
+              <span>
+                {result ? new Date(result.result.timestamp).toLocaleTimeString() : "waiting"}
+              </span>
             </div>
 
             {!result ? (
               <p className="empty-note">Waiting for results. Start a query from the left panel.</p>
             ) : (
               <>
+                <PaymentEvidenceBanner payment={result.payment} />
+
                 <div className="result-meta">
                   <span>{result.result.providerName}</span>
                   <span>{money(result.result.priceUsd)}</span>
                   <span>{result.result.latencyMs}ms</span>
-                  <span>{result.result.traceId.slice(0, 12)}</span>
-                  <span className={`source-badge ${result.result.source}`}>Source: {result.result.source}</span>
+                  <span className={`source-badge ${result.result.source}`}>
+                    Source: {result.result.source}
+                  </span>
+                  <span>
+                    Exec: {result.result.execution.source}
+                    {result.result.execution.fallbackReason
+                      ? ` · ${result.result.execution.fallbackReason}`
+                      : ""}
+                  </span>
                 </div>
 
                 <div className="trace-box">
-                  <p>evidence: {result.payment.evidence.status}</p>
                   <p>
-                    payload:{" "}
-                    {result.payment.evidence.status === "demo-paid"
-                      ? result.payment.evidence.demoId
-                      : result.payment.evidence.status === "settled"
-                        ? result.payment.evidence.transactionHash
-                        : result.payment.evidence.status === "failed"
-                          ? result.payment.evidence.error
-                          : result.payment.paymentResponseHeader ?? "<none>"}
+                    payment-evidence: {result.payment.evidence.kind} ({result.payment.evidence.status})
                   </p>
-                  <p>network: {result.payment.network}</p>
+                  <p>network: {result.payment.evidence.network}</p>
+                  <p>asset: {result.payment.evidence.asset ?? "<unspecified>"}</p>
+                </div>
+
+                <div className="receipt-card">
+                  <div className="receipt-card-head">
+                    <p className="receipt-eyebrow">Public receipt</p>
+                    <div className="receipt-badges">
+                      {receipt ? (
+                        <span className={`receipt-mode-badge receipt-mode-${receipt.payment.mode}`}>
+                          {receiptBadgeLabel[receipt.payment.mode]}
+                        </span>
+                      ) : null}
+                      {receipt?.payment.transactionHash ? (
+                        <span
+                          className="receipt-tx-pill"
+                          title={receipt.payment.transactionHash}
+                        >
+                          tx {receipt.payment.transactionHash.slice(0, 8)}…
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <p className="receipt-summary">
+                    Trace <strong>{result.result.traceId}</strong> · quoted{" "}
+                    <strong>{money(result.result.priceUsd)}</strong> · payment proof for{" "}
+                    <strong>{result.result.providerName}</strong>
+                  </p>
+
+                  <p className="receipt-hint">{receiptHintForCurrent ?? ""}</p>
+
+                  <div className="receipt-actions">
+                    <button
+                      type="button"
+                      className="ghost-btn receipt-btn"
+                      onClick={exportReceipt}
+                      disabled={!receipt}
+                      title={
+                        receipt
+                          ? `Download ${receiptFilename(receipt)}`
+                          : "Run a paid query first"
+                      }
+                    >
+                      <Download size={14} /> Export JSON receipt
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost-btn receipt-btn"
+                      onClick={copyReceipt}
+                      disabled={!receipt}
+                      title="Copy a paste-ready JSON receipt to your clipboard"
+                    >
+                      {receiptFeedback?.kind === "copied" ? (
+                        <>
+                          <Check size={14} /> Copied
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={14} /> Copy JSON
+                        </>
+                      )}
+                    </button>
+                    {receiptFeedback?.kind === "downloaded" ? (
+                      <span className="receipt-toast">Receipt downloaded ✓</span>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div className="item-stack">
@@ -366,64 +759,212 @@ export default function ControlDeckPage() {
           <div className="orbital">
             <div className="orbital-center">
               <Gauge size={20} />
-              <p>{money(analytics?.totalSpendUsd ?? 0)}</p>
-              <span>Total spend</span>
+              {showAnalyticsSkeleton ? (
+                <>
+                  <span className="analytics-skeleton analytics-skeleton--orbital" />
+                  <span className="analytics-skeleton analytics-skeleton--caption" />
+                </>
+              ) : (
+                <>
+                  <p>{money(analytics?.totalSpendUsd ?? 0)}</p>
+                  <span>Total spend</span>
+                </>
+              )}
             </div>
           </div>
 
           <div className="analytics-panel">
             <h3>Spend by category</h3>
-            <ul>
-              <li>
-                <span>Search</span>
-                <strong>{money(analytics?.spendByCategory.search ?? 0)}</strong>
-              </li>
-              <li>
-                <span>News</span>
-                <strong>{money(analytics?.spendByCategory.news ?? 0)}</strong>
-              </li>
-              <li>
-                <span>Scrape</span>
-                <strong>{money(analytics?.spendByCategory.scrape ?? 0)}</strong>
-              </li>
-            </ul>
+            {showAnalyticsSkeleton ? (
+              <AnalyticsSkeletonRows count={3} />
+            ) : !hasUsageHistory ? (
+              <p className="panel-empty-note">
+                No spend recorded yet. Run a paid query to see category breakdown.
+              </p>
+            ) : (
+              <ul>
+                <li>
+                  <span>Search</span>
+                  <strong>{money(analytics!.spendByCategory.search)}</strong>
+                </li>
+                <li>
+                  <span>News</span>
+                  <strong>{money(analytics!.spendByCategory.news)}</strong>
+                </li>
+                <li>
+                  <span>Scrape</span>
+                  <strong>{money(analytics!.spendByCategory.scrape)}</strong>
+                </li>
+              </ul>
+            )}
+          </div>
+
+          <div className="analytics-panel">
+            <h3>Execution reliability</h3>
+            {showAnalyticsSkeleton ? (
+              <AnalyticsSkeletonRows count={3} />
+            ) : !hasUsageHistory ? (
+              <p className="panel-empty-note">
+                No execution telemetry yet. Run a query to see live and fallback counts.
+              </p>
+            ) : (
+              <ul>
+                <li>
+                  <span>Live</span>
+                  <strong>{analytics!.executionSummary.liveExecutions}</strong>
+                </li>
+                <li>
+                  <span>Fallback</span>
+                  <strong>{analytics!.executionSummary.fallbackExecutions}</strong>
+                </li>
+                <li>
+                  <span>Timeouts</span>
+                  <strong>{analytics!.executionSummary.timeoutExecutions}</strong>
+                </li>
+              </ul>
+            )}
+          </div>
+
+          <div className="analytics-panel">
+            <h3>Spend by payment source</h3>
+            {showAnalyticsSkeleton ? (
+              <AnalyticsSkeletonRows count={3} />
+            ) : !hasUsageHistory ? (
+              <p className="panel-empty-note">
+                No spend recorded yet.
+              </p>
+            ) : (
+              <ul>
+                {Object.entries(analytics!.spendByPaymentSource).map(([source, amount]) => (
+                  <li key={source}>
+                    <span>{source === "demo" ? "Demo" : source === "sponsored" ? "Sponsored" : source === "wallet" ? "Wallet" : source}</span>
+                    <strong>{money(amount)}</strong>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           <div className="feed-panel">
-            <h3>Recent transactions</h3>
-            {(analytics?.recentTransactions ?? []).slice(0, 5).map((tx) => (
-              <div key={tx.id} className="feed-row">
-                <p>
-                  <span>{tx.providerId}</span>
-                  <strong>{money(tx.amountUsd)}</strong>
-                </p>
-                <small>
-                  {tx.evidence.status.toUpperCase()} · {new Date(tx.createdAt).toLocaleString()}
-                </small>
-              </div>
-            ))}
+            <h3>Demo activity (not on-chain)</h3>
+            {showAnalyticsSkeleton ? (
+              <AnalyticsSkeletonRows count={3} />
+            ) : (analytics?.recentDemoActivity ?? []).length === 0 ? (
+              <p className="panel-empty-note">
+                No demo activity yet. Demo-paid queries appear here.
+              </p>
+            ) : (
+              analytics!.recentDemoActivity.slice(0, 5).map((tx) => (
+                <div key={tx.id} className="feed-row">
+                  <p>
+                    <span>{tx.providerId}</span>
+                    <strong>{money(tx.amountUsd)}</strong>
+                    <span className="source-badge demo">demo</span>
+                  </p>
+                  <small>{new Date(tx.createdAt).toLocaleString()}</small>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="feed-panel">
+            <h3>Real settled payments (on-chain)</h3>
+            {showAnalyticsSkeleton ? (
+              <AnalyticsSkeletonRows count={3} />
+            ) : (analytics?.recentSettledPayments ?? []).length === 0 ? (
+              <p className="panel-empty-note">
+                No on-chain settlements yet. Wallet-paid transactions appear here.
+              </p>
+            ) : (
+              analytics!.recentSettledPayments.slice(0, 5).map((tx) => (
+                <div key={tx.id} className="feed-row">
+                  <p>
+                    <span>{tx.providerId}</span>
+                    <strong>{money(tx.amountUsd)}</strong>
+                    <span className="source-badge settled">settled</span>
+                  </p>
+                  <small>{new Date(tx.createdAt).toLocaleString()}</small>
+                  {tx.transactionHash && (
+                    <small className="proof-link">
+                      <a
+                        href={`https://stellar.expert/explorer/testnet/tx/${tx.transactionHash}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        tx: {tx.transactionHash.slice(0, 8)}...
+                      </a>
+                    </small>
+                  )}
+                </div>
+              ))
+            )}
           </div>
 
           <div className="feed-panel">
             <h3>Execution feed</h3>
-            {(analytics?.recentUsage ?? []).slice(0, 5).map((usage) => (
-              <div key={usage.id} className="feed-row">
-                <p>
-                  <span>
-                    {usage.mode.toUpperCase()} · {usage.providerId}
-                  </span>
-                  <strong>{usage.latencyMs}ms</strong>
-                </p>
-                <small>
-                  {money(usage.priceUsd)} · {usage.evidence.status.toUpperCase()} · {new Date(usage.createdAt).toLocaleString()}
-                </small>
-              </div>
-            ))}
+            {showAnalyticsSkeleton ? (
+              <AnalyticsSkeletonRows count={3} />
+            ) : (analytics?.recentUsage ?? []).length === 0 ? (
+              <p className="panel-empty-note">
+                No executions yet. Query runs and latency traces will appear here.
+              </p>
+            ) : (
+              analytics!.recentUsage.slice(0, 5).map((usage) => (
+                <div key={usage.id} className="feed-row">
+                  <p>
+                    <span>
+                      {usage.mode.toUpperCase()} · {usage.providerId}
+                    </span>
+                    <strong>{usage.latencyMs}ms</strong>
+                  </p>
+                  <small>
+                    {money(usage.priceUsd)} · {new Date(usage.createdAt).toLocaleString()}
+                    {usage.execution
+                      ? ` · ${usage.execution.source}${
+                          usage.execution.fallbackReason
+                            ? ` (${usage.execution.fallbackReason})`
+                            : ""
+                        }`
+                      : ""}
+                    {usage.priceOutlier ? (
+                      <span className="price-outlier-warning" title={usage.priceOutlierReason}>
+                        <AlertTriangle size={12} /> Price outlier
+                      </span>
+                    ) : null}
+                  </small>
+                </div>
+              ))
+            )}
           </div>
 
           <div className="script-panel">
             <h3>Live payload preview</h3>
-            <pre>{JSON.stringify({ mode, route: paymentMode, provider: selectedProvider, input: activeInput, sponsorshipEnabled }, null, 2)}</pre>
+            <pre>
+              {JSON.stringify(
+                {
+                  mode,
+                  route: paymentMode,
+                  provider: selectedProvider,
+                  input: activeInput,
+                  sponsorshipEnabled
+                },
+                null,
+                2
+              )}
+            </pre>
+          </div>
+
+          <div className="evidence-panel">
+            <h3>
+              <ShieldCheck size={14} />
+              SCF Evidence Checklist
+              {demoMode ? <span>DEMO</span> : null}
+            </h3>
+            <ul className="evidence-list">
+              {evidenceItems.map((item) => (
+                <EvidenceRow key={item.id} item={item} />
+              ))}
+            </ul>
           </div>
         </aside>
       </main>
@@ -431,14 +972,253 @@ export default function ControlDeckPage() {
   );
 }
 
-function StatTile(props: { label: string; value: string; icon: ReactNode }) {
+function StatTile(props: { label: string; value: string; icon: ReactNode; isLoading?: boolean }) {
   return (
     <div className="stat-tile">
       <p>
         {props.icon}
         {props.label}
       </p>
-      <strong>{props.value}</strong>
+      {props.isLoading ? (
+        <span className="analytics-skeleton analytics-skeleton--value" />
+      ) : (
+        <strong>{props.value}</strong>
+      )}
     </div>
+  );
+}
+
+function AnalyticsSkeletonRows(props: { count: number }) {
+  return (
+    <div className="analytics-skeleton-rows">
+      {Array.from({ length: props.count }, (_, index) => (
+        <span key={index} className="analytics-skeleton analytics-skeleton--row" />
+      ))}
+    </div>
+  );
+}
+
+function shortAddressInline(address: string) {
+  if (address.length < 12) {
+    return address;
+  }
+  return `${address.slice(0, 6)}...${address.slice(-6)}`;
+}
+
+function SponsorshipPreviewPanel(props: {
+  preview: SponsorshipPreview | null;
+  loading: boolean;
+  error: string | null;
+  providerName: string;
+  walletAddress: string | undefined;
+}) {
+  const { preview, loading, error, providerName, walletAddress } = props;
+
+  if (loading && !preview) {
+    return (
+      <div className="grant-preview-card" data-loading="true">
+        <header className="grant-preview-head">
+          <ShieldCheck size={14} />
+          <h3>Sponsored grant status</h3>
+          <span className="grant-preview-chip pending">checking…</span>
+        </header>
+        <div className="grant-preview-rows">
+          <span className="analytics-skeleton analytics-skeleton--row" />
+          <span className="analytics-skeleton analytics-skeleton--row" />
+          <span className="analytics-skeleton analytics-skeleton--row" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="grant-preview-card denied" data-loading="false">
+        <header className="grant-preview-head">
+          <ShieldCheck size={14} />
+          <h3>Sponsored grant status</h3>
+          <span className="grant-preview-chip denied">
+            <XCircle size={12} /> unavailable
+          </span>
+        </header>
+        <p className="grant-preview-summary denied">
+          Could not fetch grant status: {error}. Try reconnecting wallet or refresh the page.
+        </p>
+      </div>
+    );
+  }
+
+  if (!preview) {
+    return null;
+  }
+
+  const allowed = preview.available;
+  const allowLabel = allowed ? "Policy will allow" : "Policy will deny";
+  const allowSubtitle = allowed
+    ? "A fresh grant will be issued on execute and consumed within the budget cap."
+    : previewReasonCopy(preview.decision, preview.reason);
+
+  const walletDisplay = walletAddress ? shortAddressInline(walletAddress) : "No wallet";
+  const expiryCopy = preview.grant.expiresInSeconds
+    ? `expires in ${formatDuration(preview.grant.expiresInSeconds)}`
+    : "expired";
+  const restrictionMode = preview.grant.restrictions.mode;
+  const restrictionProvider = preview.grant.restrictions.providerId;
+
+  return (
+    <div className={allowed ? "grant-preview-card allowed" : "grant-preview-card denied"}>
+      <header className="grant-preview-head">
+        <ShieldCheck size={14} />
+        <h3>Sponsored grant status</h3>
+        <span className={allowed ? "grant-preview-chip allowed" : "grant-preview-chip denied"}>
+          {allowed ? (
+            <>
+              <CheckCircle2 size={12} /> {allowLabel}
+            </>
+          ) : (
+            <>
+              <XCircle size={12} /> {allowLabel}
+            </>
+          )}
+        </span>
+      </header>
+
+      <p className="grant-preview-summary">{allowSubtitle}</p>
+
+      <div className="grant-preview-grid">
+        <GrantRow label="Wallet" value={walletDisplay} tone="neutral" />
+        <GrantRow
+          label="Grant API"
+          value={
+            preview.sponsorshipEnabled && preview.storageAvailable
+              ? "Hypothetical grant · ready"
+              : preview.sponsorshipEnabled
+                ? "Storage unavailable"
+                : "Sponsorship disabled"
+          }
+          tone="neutral"
+        />
+        <GrantRow label="Max per grant" value={money(preview.grant.maxAmountUsd)} tone="neutral" />
+        <GrantRow
+          label="Grant TTL"
+          value={
+            <span>
+              <Clock4 size={11} /> {expiryCopy}
+            </span>
+          }
+          tone={
+            preview.grant.expiresInSeconds === 0
+              ? "deny"
+              : preview.grant.expiresInSeconds < 30
+                ? "warn"
+                : "neutral"
+          }
+        />
+        <GrantRow label="Provider" value={providerName} tone={allowed ? "neutral" : "warn"} />
+        <GrantRow
+          label="Restriction"
+          value={
+            restrictionMode && restrictionProvider
+              ? `${restrictionMode}/${restrictionProvider}`
+              : restrictionMode
+                ? `mode=${restrictionMode}, any provider`
+                : restrictionProvider
+                  ? `provider=${restrictionProvider}, any mode`
+                  : "no policy lock"
+          }
+          tone="neutral"
+        />
+        <GrantRow
+          label="Request price"
+          value={preview.quotedPriceUsd > 0 ? money(preview.quotedPriceUsd) : "—"}
+          tone={preview.priceFitsGrant ? "ok" : "deny"}
+        />
+        <GrantRow
+          label="Wallet budget"
+          value={`${money(preview.perWalletBudget.spentUsd)} / ${money(preview.perWalletBudget.limitUsd)}`}
+          tone={preview.perWalletBudget.remainingUsd <= 0 ? "deny" : "neutral"}
+        />
+      </div>
+
+      {!allowed ? (
+        <p className="grant-preview-actionable">{denyActionableCopy(preview.decision)}</p>
+      ) : (
+        <p className="grant-preview-actionable ok">
+          Ready to execute. Funds will be reserved against the wallet budget before the paid run.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function GrantRow(props: {
+  label: string;
+  value: ReactNode;
+  tone: "ok" | "warn" | "deny" | "neutral";
+}) {
+  return (
+    <div className={`grant-preview-row tone-${props.tone}`}>
+      <span className="grant-preview-label">{props.label}</span>
+      <span className="grant-preview-value">{props.value}</span>
+    </div>
+  );
+}
+
+function formatDuration(totalSeconds: number) {
+  if (totalSeconds < 60) {
+    return `${totalSeconds}s`;
+  }
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes < 60) {
+    return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const rem = minutes % 60;
+  return rem > 0 ? `${hours}h ${rem}m` : `${hours}h`;
+}
+
+function previewReasonCopy(decision: string, reason: string | undefined) {
+  if (reason) {
+    return `Policy will deny with ${decision} (${reason}). Adjust the request or grant, then retry.`;
+  }
+  return `Policy will deny with ${decision}. Adjust the request or grant, then retry.`;
+}
+
+function denyActionableCopy(decision: string) {
+  switch (decision) {
+    case "denied_sponsorship_disabled":
+      return "Sponsorship is currently disabled on the API. Contact the operator or switch to wallet payment.";
+    case "denied_storage_unavailable":
+      return "Sponsorship storage is not reachable right now. Retry shortly or fall back to wallet payment.";
+    case "denied_wrong_provider":
+      return "This provider is not available for sponsored runs. Pick another provider for this mode or switch to wallet payment.";
+    case "denied_price_exceeded":
+      return "The selected provider costs more than the grant cap. Pick a cheaper provider or wait for a fresh grant with a higher cap.";
+    case "denied_expired":
+      return "A grant signal was already issued but is expired. Re-run to mint a new one.";
+    case "denied_budget_exceeded":
+      return "The daily sponsored budget is exhausted. Try again tomorrow, switch wallets, or fall back to wallet payment.";
+    default:
+      return "Policy will deny this request. See the reason above and adjust inputs.";
+  }
+}
+
+const evidenceIconMap: Record<string, ReactNode> = {
+  pass: <Check size={10} />,
+  warn: <AlertTriangle size={10} />,
+  pending: <Clock size={10} />
+};
+
+function EvidenceRow(props: { item: EvidenceCheckItem }) {
+  const { item } = props;
+  return (
+    <li className="evidence-item">
+      <span className={`evidence-icon ${item.status}`}>
+        {evidenceIconMap[item.status]}
+      </span>
+      <span className="evidence-label">{item.label}</span>
+      {item.detail ? <span className="evidence-detail">{item.detail}</span> : null}
+    </li>
   );
 }

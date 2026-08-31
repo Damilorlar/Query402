@@ -1,114 +1,22 @@
-import fs from "node:fs";
-import path from "node:path";
 import { nanoid } from "nanoid";
-import type { AnalyticsSummary, PaymentAttempt, PaymentSource, QueryMode, UsageEvent, PaymentEvidence } from "@query402/shared";
+import type {
+  AnalyticsSummary,
+  PaymentAttempt,
+  ProviderExecutionMetadata,
+  PaymentSource,
+  QueryMode,
+  UsageEvent
+} from "@query402/shared";
 import { config } from "./config.js";
+import { getStorageRepository } from "./storage/index.js";
+import { getProviderById } from "./pricing.js";
+import type {
+  AnalyticsQueryOptions,
+  PaginationOptions,
+  PaymentUsagePair
+} from "./storage/types.js";
 
-interface PersistedDb {
-  usage: UsageEvent[];
-  payments: PaymentAttempt[];
-}
-
-const dataDir = path.resolve(process.cwd(), "apps/api/data");
-const dataFile = path.join(dataDir, "db.json");
-
-function ensureDb() {
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
-
-  if (!fs.existsSync(dataFile)) {
-    const initial: PersistedDb = { usage: [], payments: [] };
-    fs.writeFileSync(dataFile, JSON.stringify(initial, null, 2), "utf-8");
-  }
-}
-
-function readDb(): PersistedDb {
-  ensureDb();
-  const raw = fs.readFileSync(dataFile, "utf-8");
-  return JSON.parse(raw) as PersistedDb;
-}
-
-function writeDb(db: PersistedDb) {
-  fs.writeFileSync(dataFile, JSON.stringify(db, null, 2), "utf-8");
-}
-
-export function saveUsageEvent(event: UsageEvent) {
-  const db = readDb();
-  db.usage.unshift(event);
-  db.usage = db.usage.slice(0, 500);
-  writeDb(db);
-}
-
-export function savePaymentAttempt(payment: PaymentAttempt) {
-  const db = readDb();
-  db.payments.unshift(payment);
-  db.payments = db.payments.slice(0, 500);
-  writeDb(db);
-}
-
-export function updatePaymentAttemptEvidence(id: string, evidence: PaymentEvidence) {
-  const db = readDb();
-  const index = db.payments.findIndex(p => p.id === id);
-  if (index !== -1) {
-    db.payments[index].evidence = evidence;
-    writeDb(db);
-  }
-}
-
-export function updateUsageEventEvidence(traceId: string, evidence: PaymentEvidence) {
-  const db = readDb();
-  const index = db.usage.findIndex(u => u.traceId === traceId);
-  if (index !== -1) {
-    db.usage[index].evidence = evidence;
-    writeDb(db);
-  }
-}
-
-export function updateUsageEventsByPaymentId(paymentId: string, evidence: PaymentEvidence) {
-  const db = readDb();
-  let updated = false;
-  db.usage.forEach(u => {
-    if (u.paymentId === paymentId) {
-      u.evidence = evidence;
-      updated = true;
-    }
-  });
-  if (updated) {
-    writeDb(db);
-  }
-}
-
-export function getUsageEvents() {
-  return readDb().usage;
-}
-
-export function getPaymentAttempts() {
-  return readDb().payments;
-}
-
-export function getAnalyticsSummary(): AnalyticsSummary {
-  const db = readDb();
-  const spendByCategory: Record<"search" | "news" | "scrape", number> = db.usage.reduce(
-    (acc, event) => {
-      acc[event.mode] += event.priceUsd;
-      return acc;
-    },
-    { search: 0, news: 0, scrape: 0 }
-  );
-
-  const totalSpendUsd = Number((spendByCategory.search + spendByCategory.news + spendByCategory.scrape).toFixed(6));
-
-  return {
-    totalQueries: db.usage.length,
-    totalSpendUsd,
-    spendByCategory,
-    recentTransactions: db.payments.slice(0, 10),
-    recentUsage: db.usage.slice(0, 10)
-  };
-}
-
-export function persistSponsoredPayment(input: {
+export interface PersistPaidRequestInput {
   mode: QueryMode;
   endpoint: string;
   provider: string;
@@ -117,55 +25,138 @@ export function persistSponsoredPayment(input: {
   latencyMs: number;
   traceId: string;
   paymentResponseHeader: string | null;
+  execution: ProviderExecutionMetadata;
+  payerPublicKey?: string;
+}
+
+export interface PersistSponsoredPaymentInput extends PersistPaidRequestInput {
   walletPublicKey: string;
   sponsorshipGrantId: string;
   policyDecision: string;
   paymentSource?: PaymentSource;
   sponsorPublicKey?: string;
-}) {
+}
+
+function buildPaymentAttempt(
+  input: PersistPaidRequestInput,
+  overrides: Partial<PaymentAttempt> = {}
+): PaymentAttempt {
   const now = new Date().toISOString();
-  const paymentId = `pay_${nanoid(10)}`;
-  const paymentSource = input.paymentSource ?? "sponsored";
-  const sponsorPublicKey = input.sponsorPublicKey ?? config.DEMO_CLIENT_PUBLIC_KEY;
 
-  const evidence: PaymentEvidence = {
-    status: "settled",
-    network: config.STELLAR_NETWORK,
-    amountUsd: input.priceUsd,
-    payToAddress: config.X402_PAY_TO_ADDRESS,
-    facilitatorUrl: config.X402_FACILITATOR_URL,
-    payerPublicKey: input.walletPublicKey,
-    transactionHash: input.paymentResponseHeader ?? "sponsored_tx",
-    paymentPayload: "sponsored"
-  };
-
-  savePaymentAttempt({
-    id: paymentId,
+  return {
+    id: `pay_${nanoid(10)}`,
     endpoint: input.endpoint,
     providerId: input.provider,
-    evidence,
+    amountUsd: input.priceUsd,
+    network: config.STELLAR_NETWORK,
+    payerPublicKey: input.payerPublicKey,
+    payToAddress: config.X402_PAY_TO_ADDRESS,
+    facilitatorUrl: config.X402_FACILITATOR_URL,
+    status: "settled",
+    transactionHash: input.paymentResponseHeader ?? undefined,
     createdAt: now,
-    sponsorshipGrantId: input.sponsorshipGrantId,
-    policyDecision: input.policyDecision,
-    paymentSource,
-    sponsorPublicKey
-  });
+    ...overrides
+  };
+}
 
-  saveUsageEvent({
+function computePriceOutlier(
+  providerId: string,
+  priceUsd: number
+): Partial<Pick<UsageEvent, "priceOutlier" | "priceOutlierReason">> {
+  const provider = getProviderById(providerId);
+  if (!provider) return {};
+
+  const threshold = provider.priceUsd * 1.1;
+  if (priceUsd > threshold) {
+    return {
+      priceOutlier: true,
+      priceOutlierReason: `Price $${priceUsd.toFixed(4)} exceeds configured price $${provider.priceUsd.toFixed(4)} for provider ${providerId}`
+    };
+  }
+  return {};
+}
+
+function buildUsageEvent(
+  input: PersistPaidRequestInput,
+  overrides: Partial<UsageEvent> = {}
+): UsageEvent {
+  const now = new Date().toISOString();
+
+  return {
     id: `use_${nanoid(10)}`,
     mode: input.mode,
     endpoint: input.endpoint,
     providerId: input.provider,
     queryOrUrl: input.queryOrUrl,
     priceUsd: input.priceUsd,
-    evidence,
+    network: config.STELLAR_NETWORK,
+    paymentStatus: "settled",
+    paymentTxHash: input.paymentResponseHeader ?? undefined,
+    facilitatorUrl: config.X402_FACILITATOR_URL,
+    payerPublicKey: input.payerPublicKey,
     traceId: input.traceId,
     paymentId,
     createdAt: now,
     latencyMs: input.latencyMs,
+    execution: input.execution,
+    ...computePriceOutlier(input.provider, input.priceUsd),
+    ...overrides
+  };
+}
+
+export async function saveUsageEvent(event: UsageEvent): Promise<void> {
+  await getStorageRepository().saveUsageEvent(event);
+}
+
+export async function savePaymentAttempt(payment: PaymentAttempt): Promise<void> {
+  await getStorageRepository().savePaymentAttempt(payment);
+}
+
+export async function persistPaymentAndUsage(pair: PaymentUsagePair): Promise<void> {
+  await getStorageRepository().persistPaymentAndUsage(pair);
+}
+
+export async function getUsageEvents(options?: PaginationOptions): Promise<UsageEvent[]> {
+  return getStorageRepository().getUsageEvents(options);
+}
+
+export async function getPaymentAttempts(options?: PaginationOptions): Promise<PaymentAttempt[]> {
+  return getStorageRepository().getPaymentAttempts(options);
+}
+
+export async function getAnalyticsSummary(
+  options?: AnalyticsQueryOptions
+): Promise<AnalyticsSummary> {
+  return getStorageRepository().getAnalyticsSummary(options);
+}
+
+export async function persistPaidRequest(input: PersistPaidRequestInput): Promise<void> {
+  const payment = buildPaymentAttempt(input);
+  const usage = buildUsageEvent(input, {
+    payerPublicKey: input.payerPublicKey
+  });
+
+  await persistPaymentAndUsage({ payment, usage });
+}
+
+export async function persistSponsoredPayment(input: PersistSponsoredPaymentInput): Promise<void> {
+  const paymentSource = input.paymentSource ?? "sponsored";
+  const sponsorPublicKey = input.sponsorPublicKey ?? config.DEMO_CLIENT_PUBLIC_KEY;
+  const sponsorshipFields = {
     sponsorshipGrantId: input.sponsorshipGrantId,
     policyDecision: input.policyDecision,
     paymentSource,
     sponsorPublicKey
-  });
+  };
+
+  const payment = buildPaymentAttempt(
+    { ...input, payerPublicKey: input.walletPublicKey },
+    sponsorshipFields
+  );
+  const usage = buildUsageEvent(
+    { ...input, payerPublicKey: input.walletPublicKey },
+    sponsorshipFields
+  );
+
+  await persistPaymentAndUsage({ payment, usage });
 }

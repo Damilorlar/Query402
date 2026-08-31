@@ -1,12 +1,11 @@
 > [!NOTE]
-> Query402 participates in the Drips Network Stellar Wave program. This public
+> Query402 participates in the Stellar Wave program. This public
 > repository is the canonical workspace for Wave issues and contributions.
 
 <div align="center">
   <img src="./public/Query402-logo.png" alt="Query402 logo" width="180" />
   <h1>Query402</h1>
   <p><strong>Agentic pay-per-query internet access on Stellar with x402.</strong></p>
-</div>
 
 Query402 is a hackathon-ready marketplace-style router where agents can buy `search`, `news`, and `scrape` results per request instead of paying monthly subscriptions.
 
@@ -29,7 +28,7 @@ Query402 is a hackathon-ready marketplace-style router where agents can buy `sea
 - Express API with provider catalog and protected paid routes.
 - Provider abstraction for `search`, `news`, `scrape`.
 - Configurable per-request pricing.
-- Usage + payment persistence in JSON (`apps/api/data/db.json`).
+- Usage + payment persistence in SQLite (`apps/api/data/analytics.db`) via atomic storage adapter.
 - Analytics endpoint for total spend and category breakdown.
 - Agent CLI with commands for search/news/scrape.
 - Deterministic `DEMO_MODE` fallback for hackathon reliability.
@@ -92,7 +91,21 @@ Copy `.env.example` to `.env` and fill values:
 - `DEMO_MODE` (`true` for deterministic demo reliability)
 - Optional keys: `BRAVE_API_KEY`, `SERPAPI_API_KEY`, `NEWS_API_KEY`, `GROQ_API_KEY`, `GROQ_MODEL`
 
+### Sponsorship Configuration (Optional)
+
+To enable the sponsored-transaction setup for local demos, set `SPONSORSHIP_ENABLED=true` and configure the following variables. If sponsorship is disabled (the default), these variables are ignored and normal client-paid flow is used.
+
+- `SPONSORSHIP_ENABLED` (`false` by default. Keep disabled for normal local development.)
+- `SPONSORSHIP_SIGNING_SECRET` (Required if enabled. A Stellar secret key used to sponsor transactions. Use a fresh testnet key, do not use real production secrets, e.g. `S...`)
+- `SPONSORSHIP_GLOBAL_DAILY_BUDGET_USD` (Default: `10`. Maximum total USD spend allowed per day.)
+- `SPONSORSHIP_PER_WALLET_DAILY_BUDGET_USD` (Default: `1`. Maximum USD spend allowed per client wallet per day.)
+- `SPONSORSHIP_RATE_LIMIT_PER_MINUTE` (Default: `10`. Maximum sponsor requests per minute per wallet.)
+- `SPONSORSHIP_GRANT_TTL_SECONDS` (Default: `300`. How long the sponsor grant is valid.)
+- `SPONSORSHIP_CHALLENGE_TTL_SECONDS` (Default: `60`. Challenge expiration time.)
+- `SPONSORSHIP_DB_PATH` (Default: `data/sponsorship.db`. Path to the local sqlite database tracking budgets.)
+
 Deployment note:
+
 - Render (API): set server vars like `GROQ_*`, `X402_*`, `CORS_ORIGINS`.
 - Vercel (Web): set only `VITE_*` vars (for example `VITE_API_BASE_URL`).
 
@@ -111,11 +124,75 @@ npm run typecheck
 npm run build
 ```
 
+## Tests
+
+Run the full deterministic test suite from the repository root:
+
+```bash
+npm test
+```
+
+Generate coverage output and enforce the documented baseline thresholds:
+
+```bash
+npm run test:coverage
+```
+
+Details: [`docs/testing.md`](./docs/testing.md)
+
+## Documentation
+
+- **Testing strategy**: [`docs/testing.md`](./docs/testing.md)
+- **Demo vs real payment evidence**: [`docs/demo-payment-evidence.md`](./docs/demo-payment-evidence.md)
+- **Architecture overview**: [`ARCHITECTURE.md`](./ARCHITECTURE.md)
+
+## Quality gates
+
+Run the same checks locally that CI enforces on pull requests:
+
+```bash
+npm ci
+npm run clean
+npm run typecheck
+npm run build
+npm run test
+npm run lint
+npm run format:check
+npm run check:source-artifacts
+```
+
+Use `npm run clean` before quality gates when you want to remove local build output (`dist`), test coverage (`coverage`), and API runtime data under `apps/api/data`.
+
+CI uses the Node version from `.nvmrc`, installs dependencies with `npm ci`, and does not require credentials or live Stellar payments.
+
 ## Run backend API
 
 ```bash
 npm run dev:api
 ```
+
+## Public API curl quickstart
+
+The API listens on `http://localhost:3001` by default (`PORT_API=3001`). For a local demo without payment credentials, copy the example environment file first; it enables deterministic demo mode (`DEMO_MODE=true`):
+
+```bash
+[ -f .env ] || cp .env.example .env
+npm run dev:api
+```
+
+Each request below is read-only and can be run from another terminal:
+
+```bash
+API_BASE=http://localhost:3001
+
+curl "$API_BASE/health"
+curl "$API_BASE/api/providers"
+curl "$API_BASE/api/catalog"
+curl "$API_BASE/api/usage"
+curl "$API_BASE/api/analytics"
+```
+
+For paid-route curl examples, including the demo-mode 402 challenge and retry, see [Demo-mode payment evidence](./docs/demo-payment-evidence.md).
 
 ## Run frontend dashboard
 
@@ -151,6 +228,46 @@ Scrape:
 npm run cli -- scrape "https://developers.stellar.org" --provider scrape.page
 ```
 
+### Structured receipts
+
+Pass `--receipt` when a script or log needs a machine-readable result instead of the human-readable summary. `--json` is an alias for the same output. Both flags print a JSON object containing only public receipt fields: `command`, `provider`, the (possibly shortened) `input`, `price`, and `traceId`. Inputs longer than 50 characters are automatically shortened to 47 characters plus `...`; payment headers, wallet keys, and the raw response are not included.
+
+With the API running in demo mode (`DEMO_MODE=true`), these local commands require no real credentials:
+
+Query receipt:
+
+```bash
+DEMO_MODE=true npm run cli -- search "latest soroban updates" --provider search.basic --receipt
+```
+
+```json
+{
+  "command": "search",
+  "provider": "search.basic",
+  "input": "latest soroban updates",
+  "price": 0.01,
+  "traceId": "trace_<generated>"
+}
+```
+
+Scrape receipt (using the `--json` alias):
+
+```bash
+DEMO_MODE=true npm run cli -- scrape "https://example.com" --provider scrape.page --json
+```
+
+```json
+{
+  "command": "scrape",
+  "provider": "scrape.page",
+  "input": "https://example.com",
+  "price": 0.02,
+  "traceId": "trace_<generated>"
+}
+```
+
+Demo receipts are local evidence of the request flow only. They do not represent a settled Stellar payment; use the real-payment validation flow below for live payment proof.
+
 Full CLI showcase:
 
 ```bash
@@ -169,16 +286,19 @@ If this passes, output includes payment proof fields (`payment-response`, trace 
 
 1. Set `DEMO_MODE=false` in `.env`.
 2. Fill real funded keys (not placeholders):
-  - `DEMO_CLIENT_SECRET_KEY`
-  - `DEMO_CLIENT_PUBLIC_KEY`
-  - `X402_PAY_TO_ADDRESS`
-  - `X402_FACILITATOR_API_KEY` (for `channels.openzeppelin.com` facilitator)
+
+- `DEMO_CLIENT_SECRET_KEY`
+- `DEMO_CLIENT_PUBLIC_KEY`
+- `X402_PAY_TO_ADDRESS`
+- `X402_FACILITATOR_API_KEY` (for `channels.openzeppelin.com` facilitator)
+
 3. If needed, create facilitator key: `https://channels.openzeppelin.com/testnet/gen`
 4. Ensure API is running (`npm run dev:api`).
 5. Run `npm run validate:real`.
 6. Keep CLI output as judge proof screenshot/log.
 
 Notes:
+
 - Script checks API health and facilitator `/supported` reachability before payment attempt.
 - If facilitator/wallet funding is not ready, the script fails fast with explicit reason.
 
@@ -229,6 +349,7 @@ npm run cli -- search "latest soroban updates" --provider search.basic
 ```
 
 Expected proof during demo:
+
 - `Status: 200`
 - `payment-response` header value
 - provider and paid price in output
@@ -268,7 +389,6 @@ Expected proof during demo:
 
 - Add citation/link verification and stricter source quality filters for AI-generated results.
 - Add richer payment metadata parsing from payment headers.
-- Add SQLite persistence for more advanced analytics queries.
 - Add integration tests with a reachable facilitator in CI.
 
 ## Submission packaging
@@ -299,3 +419,43 @@ Judge talking points (30-second version):
 - [x] Usage + spend analytics
 - [x] Env + setup docs
 - [x] Frontend dashboard
+
+## Troubleshooting
+
+### Agent client fails with a network error
+
+If the agent client throws a connection error such as `ECONNREFUSED` or `fetch failed`, the most common cause is that the API server is not running or `API_BASE_URL` is pointing to the wrong address.
+
+**1. Confirm the API server is running**
+
+Open a terminal and start the API:
+
+```sh
+npm run dev --workspace @query402/api
+```
+
+The server should log something like `Listening on http://localhost:3001`.
+
+**2. Set `API_BASE_URL` for local development**
+
+The agent client reads `API_BASE_URL` from the environment. For local development it should point to the API server:
+
+```sh
+export API_BASE_URL=http://localhost:3001
+```
+
+Or add it to a `.env` file in `apps/agent-client/`:
+
+```sh
+API_BASE_URL=http://localhost:3001
+```
+
+**3. Run the agent demo**
+
+Once the API is running and `API_BASE_URL` is set, start the agent demo:
+
+```sh
+npm run demo --workspace @query402/agent-client
+```
+
+**Note:** Never commit real private keys or funded wallet secrets to `.env` files. Use testnet keys only for local development.

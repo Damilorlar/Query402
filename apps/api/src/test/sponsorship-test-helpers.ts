@@ -20,6 +20,7 @@ export function applySponsorshipTestEnv(overrides: Record<string, string> = {}) 
     SPONSORSHIP_GRANT_TTL_SECONDS: "300",
     SPONSORSHIP_CHALLENGE_TTL_SECONDS: "60",
     SPONSORSHIP_DB_PATH: dbPath,
+    IDEMPOTENCY_TTL_SECONDS: "86400",
     ...overrides
   };
 
@@ -56,7 +57,9 @@ export function buildGrant(overrides: Partial<SponsorshipGrant> = {}): Sponsorsh
   };
 }
 
-export async function createSignedGrant(overrides: Partial<SponsorshipGrant> = {}): Promise<SignedGrant> {
+export async function createSignedGrant(
+  overrides: Partial<SponsorshipGrant> = {}
+): Promise<SignedGrant> {
   const grantModule = await import("../lib/sponsorship/grant.js");
   return grantModule.signGrant(buildGrant(overrides));
 }
