@@ -116,3 +116,42 @@ export const sponsorshipPreviewResponseSchema = z.object({
   }),
   reason: z.string().optional()
 });
+
+// --- Receipt export schemas ---------------------------------------------------
+//
+// These schemas describe the public-safe payload that the web client writes to a
+// JSON file when a reviewer clicks "Export receipt". No secrets, payment
+// headers, facilitator responses, or wallet secrets are included. Missing
+// fields intentionally render as `null` rather than `"not_available"` so the
+// output stays trivially diff-able in pull requests and posts.
+
+export const receiptPaymentModeSchema = z.enum(["wallet", "sponsored", "demo"]);
+
+export const receiptPaymentStatusSchema = z.enum([
+  "verified",
+  "settled",
+  "failed",
+  "demo-paid"
+]);
+
+export const receiptEvidenceKindSchema = z.enum(["demo", "verified", "settled", "failed"]);
+
+export const query402ReceiptSchema = z.object({
+  schema: z.literal("query402.receipt.v1"),
+  generatedAt: z.string().datetime({ offset: true }),
+  mode: queryModeSchema,
+  providerId: z.string().min(1),
+  providerName: z.string().min(1),
+  quotedPriceUsd: z.number().nonnegative(),
+  traceId: z.string().min(1),
+  resultTimestamp: z.string().datetime({ offset: true }),
+  payment: z.object({
+    mode: receiptPaymentModeSchema,
+    status: receiptPaymentStatusSchema.nullable(),
+    evidenceKind: receiptEvidenceKindSchema.nullable(),
+    transactionHash: z.string().nullable(),
+    network: z.string().nullable()
+  })
+});
+
+export type Query402Receipt = z.infer<typeof query402ReceiptSchema>;
