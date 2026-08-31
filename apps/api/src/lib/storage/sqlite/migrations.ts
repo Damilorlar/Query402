@@ -84,6 +84,15 @@ ALTER TABLE usage_events ADD COLUMN execution_fallback_reason TEXT;
 ALTER TABLE usage_events ADD COLUMN execution_latency_estimate_ms INTEGER;
 ALTER TABLE usage_events ADD COLUMN execution_observed_duration_ms INTEGER;
 ALTER TABLE usage_events ADD COLUMN execution_circuit_breaker_state TEXT;
+ALTER TABLE usage_events ADD COLUMN error_code TEXT;
+ALTER TABLE payment_attempts ADD COLUMN error_code TEXT;
+`
+  },
+  {
+    version: 4,
+    sql: `
+ALTER TABLE usage_events ADD COLUMN price_outlier INTEGER;
+ALTER TABLE usage_events ADD COLUMN price_outlier_reason TEXT;
 `
   }
 ];

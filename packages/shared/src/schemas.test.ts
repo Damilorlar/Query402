@@ -3,7 +3,11 @@ import {
   newsQuerySchema,
   providerCategorySchema,
   providerSchema,
+  query402ReceiptSchema,
   queryModeSchema,
+  receiptEvidenceKindSchema,
+  receiptPaymentModeSchema,
+  receiptPaymentStatusSchema,
   scrapeQuerySchema,
   searchQuerySchema,
   signedGrantSchema,
@@ -20,6 +24,7 @@ const validProvider = {
   latencyEstimateMs: 700,
   qualityScore: 75,
   sourceType: "deterministic-fallback" as const,
+  provenance: "unknown" as const,
   enabled: true
 };
 
@@ -126,5 +131,119 @@ describe("sponsorshipChallengeSchema", () => {
         expiresAt: "2026-12-31T12:00:00.000Z"
       })
     ).toMatchObject({ message: "Sign to request sponsorship" });
+  });
+});
+
+describe("receiptPaymentModeSchema", () => {
+  it("accepts the supported payment modes", () => {
+    expect(receiptPaymentModeSchema.parse("wallet")).toBe("wallet");
+    expect(receiptPaymentModeSchema.parse("sponsored")).toBe("sponsored");
+    expect(receiptPaymentModeSchema.parse("demo")).toBe("demo");
+  });
+
+  it("rejects unknown payment modes", () => {
+    expect(receiptPaymentModeSchema.safeParse("invoice").success).toBe(false);
+  });
+});
+
+describe("receiptPaymentStatusSchema", () => {
+  it("accepts the supported payment statuses", () => {
+    expect(receiptPaymentStatusSchema.parse("settled")).toBe("settled");
+    expect(receiptPaymentStatusSchema.parse("demo-paid")).toBe("demo-paid");
+    expect(receiptPaymentStatusSchema.parse("verified")).toBe("verified");
+    expect(receiptPaymentStatusSchema.parse("failed")).toBe("failed");
+  });
+
+  it("rejects the internal-only settlement-pending state", () => {
+    // The builder normalizes "settlement-pending" to `null` before exporting a
+    // public receipt, so the public schema deliberately omits it.
+    expect(receiptPaymentStatusSchema.safeParse("settlement-pending").success).toBe(false);
+  });
+
+  it("rejects unrelated statuses", () => {
+    expect(receiptPaymentStatusSchema.safeParse("not_available").success).toBe(false);
+  });
+});
+
+describe("receiptEvidenceKindSchema", () => {
+  it("accepts the supported evidence kinds", () => {
+    expect(receiptEvidenceKindSchema.parse("demo")).toBe("demo");
+    expect(receiptEvidenceKindSchema.parse("settled")).toBe("settled");
+    expect(receiptEvidenceKindSchema.parse("verified")).toBe("verified");
+    expect(receiptEvidenceKindSchema.parse("failed")).toBe("failed");
+  });
+});
+
+describe("query402ReceiptSchema", () => {
+  const baseReceipt = {
+    schema: "query402.receipt.v1" as const,
+    generatedAt: "2026-06-30T12:00:00.000Z",
+    mode: "search" as const,
+    providerId: "search.basic",
+    providerName: "Basic Search",
+    quotedPriceUsd: 0.01,
+    traceId: "trace_123",
+    resultTimestamp: "2026-06-30T12:00:00.000Z",
+    payment: {
+      mode: "wallet" as const,
+      status: "settled" as const,
+      evidenceKind: "settled" as const,
+      transactionHash:
+        "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+      network: "stellar:testnet"
+    }
+  };
+
+  it("accepts a canonical settled wallet receipt", () => {
+    expect(query402ReceiptSchema.parse(baseReceipt)).toEqual(baseReceipt);
+  });
+
+  it("accepts a sponsored receipt with null transaction hash", () => {
+    const sponsored = {
+      ...baseReceipt,
+      mode: "news" as const,
+      payment: {
+        mode: "sponsored" as const,
+        status: "demo-paid" as const,
+        evidenceKind: "demo" as const,
+        transactionHash: null,
+        network: "stellar:testnet"
+      }
+    };
+    expect(query402ReceiptSchema.parse(sponsored)).toEqual(sponsored);
+  });
+
+  it("accepts missing payment status fields as null", () => {
+    const partial = {
+      ...baseReceipt,
+      payment: {
+        mode: "demo" as const,
+        status: null,
+        evidenceKind: null,
+        transactionHash: null,
+        network: null
+      }
+    };
+    expect(query402ReceiptSchema.parse(partial)).toEqual(partial);
+  });
+
+  it("rejects receipts with a different schema version", () => {
+    expect(
+      query402ReceiptSchema.safeParse({ ...baseReceipt, schema: "query402.receipt.v2" }).success
+    ).toBe(false);
+  });
+
+  it("rejects receipts with an unsupported payment mode", () => {
+    expect(
+      query402ReceiptSchema.safeParse({
+        ...baseReceipt,
+        payment: { ...baseReceipt.payment, mode: "stripe" }
+      }).success
+    ).toBe(false);
+  });
+
+  it("rejects receipts missing the schema literal", () => {
+    const { schema: _ignored, ...withoutSchema } = baseReceipt;
+    expect(query402ReceiptSchema.safeParse(withoutSchema).success).toBe(false);
   });
 });
