@@ -99,6 +99,7 @@ function demoMode402Middleware(req: Request, res: Response, next: NextFunction) 
 
   return res.status(402).json({
     error: "Payment Required",
+    errorCode: "payment_required",
     demoMode: true,
     debug,
     accepts: {
@@ -244,7 +245,12 @@ export function createX402Middleware() {
 
     return {
       contentType: "application/json",
-      body: { error: "Payment settlement failed", type: "payment_settlement_failed", debug }
+      body: {
+        error: "Payment settlement failed",
+        type: "payment_settlement_failed",
+        errorCode: "payment_invalid",
+        debug
+      }
     };
   };
 

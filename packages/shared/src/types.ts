@@ -1,3 +1,6 @@
+import { z } from "zod";
+import { paidRouteErrorCodeSchema } from "./schemas.js";
+
 export type QueryMode = "search" | "news" | "scrape";
 export type ProviderCategory = QueryMode;
 export type SourceType = "live" | "deterministic-fallback" | "unavailable";
@@ -10,6 +13,7 @@ export type ExecutionFallbackReason =
   | "missing-fallback";
 export type CircuitBreakerState = "closed" | "half-open" | "open";
 export type PaymentSource = "sponsored" | "wallet" | "demo";
+export type PaidRouteErrorCode = z.infer<typeof paidRouteErrorCodeSchema>;
 
 export type LatencyBucket = "<1s" | "1-3s" | "3-10s" | ">10s" | "unknown";
 
@@ -146,6 +150,7 @@ export interface PaymentAttempt {
   policyDecision?: string;
   paymentSource?: PaymentSource;
   sponsorPublicKey?: string;
+  errorCode?: PaidRouteErrorCode;
 }
 
 export interface AnalyticsSummary {
