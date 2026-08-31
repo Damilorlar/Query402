@@ -13,6 +13,7 @@ providers.push({
   latencyEstimateMs: 100,
   qualityScore: 90,
   sourceType: "live",
+  provenance: "live" as const,
   enabled: true
 });
 providers.push({
@@ -24,6 +25,7 @@ providers.push({
   latencyEstimateMs: 100,
   qualityScore: 90,
   sourceType: "deterministic-fallback",
+  provenance: "fallback" as const,
   enabled: true
 });
 
