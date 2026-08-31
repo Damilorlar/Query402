@@ -1,4 +1,4 @@
-import type { DemoScenarioManifest } from "@query402/shared";
+import type { HealthResponse } from "../types.js";
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001";
 
@@ -24,8 +24,8 @@ export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> 
   return (await response.json()) as T;
 }
 
-export async function fetchDemoScenarios(baseUrl?: string): Promise<DemoScenarioManifest> {
-  return fetchJson<DemoScenarioManifest>(`${baseUrl ?? API_BASE_URL}/api/scenarios`);
+export async function fetchHealth(apiBaseUrl: string): Promise<HealthResponse> {
+  return fetchJson<HealthResponse>(`${apiBaseUrl}/health`);
 }
 
 export function money(value: number) {

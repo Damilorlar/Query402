@@ -3,9 +3,12 @@ import type { ProviderDefinition, QueryMode, SponsorshipPreview } from "@query40
 import {
   Activity,
   AlertTriangle,
+  Check,
   CheckCircle2,
   CircleDollarSign,
   Clock4,
+  Copy,
+  Download,
   Gauge,
   Home,
   Radar,
@@ -13,18 +16,29 @@ import {
   ShieldCheck,
   Sparkles,
   TerminalSquare,
+  Check,
+  AlertTriangle,
+  Clock,
   XCircle
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import type { AnalyticsResponse, PaidQueryResponse } from "../types.js";
-import { API_BASE_URL, fetchJson, money } from "../lib/api.js";
+import type { AnalyticsResponse, EvidenceCheckItem, PaidQueryResponse } from "../types.js";
+import { API_BASE_URL, fetchHealth, fetchJson, money } from "../lib/api.js";
 import {
   fetchSponsorshipEnabled,
   fetchSponsorshipPreview,
   runSponsoredPaidQuery
 } from "../lib/sponsorship.js";
 import { runWalletPaidQuery } from "../lib/x402.js";
+import {
+  buildReceipt,
+  copyReceiptToClipboard,
+  downloadReceipt,
+  type ReceiptPaymentMode,
+  receiptFilename
+} from "../lib/receipt.js";
 import { WalletSessionMachine, FreighterAdapter, type WalletState } from "../lib/wallet/index.js";
+import PaymentEvidenceBanner from "../components/PaymentEvidenceBanner.js";
 
 const modeLabels: Record<QueryMode, string> = {
   search: "Search",
@@ -73,6 +87,7 @@ export default function ControlDeckPage() {
   const [preview, setPreview] = useState<SponsorshipPreview | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [demoMode, setDemoMode] = useState(false);
 
   const modeProviders = useMemo(
     () => providers.filter((provider) => provider.category === mode && provider.enabled),
@@ -91,6 +106,68 @@ export default function ControlDeckPage() {
   const estimatedTokenBaseUnits = selectedProviderDetails
     ? toTokenBaseUnits(selectedProviderDetails.priceUsd)
     : "0";
+
+  const evidenceItems: EvidenceCheckItem[] = useMemo(() => {
+    const resultOk = result !== null;
+    const resultHasItems = (result?.result?.items?.length ?? 0) > 0;
+    const paymentCaptured = result?.payment?.paymentResponseHeader != null;
+    const hasUsage = (analytics?.totalQueries ?? 0) > 0;
+    const hasSpend = (analytics?.totalSpendUsd ?? 0) > 0;
+    const hasReceipts = (analytics?.recentTransactions?.length ?? 0) > 0;
+
+    return [
+      {
+        id: "catalog",
+        label: "Provider catalog loaded",
+        status: providers.length > 0 ? "pass" : "pending",
+        detail: providers.length > 0 ? `${providers.length} providers` : undefined
+      },
+      {
+        id: "query-exec",
+        label: "Paid/demo query executed",
+        status: resultOk ? "pass" : "pending",
+        detail: resultOk ? result!.result.providerName : undefined
+      },
+      {
+        id: "result",
+        label: "Result returned",
+        status: resultOk ? (resultHasItems ? "pass" : "warn") : "pending",
+        detail: resultOk
+          ? `${result!.result.items.length} items, ${result!.result.latencyMs}ms`
+          : undefined
+      },
+      {
+        id: "payment",
+        label: "Payment evidence captured",
+        status: paymentCaptured ? "pass" : "pending",
+        detail: paymentCaptured
+          ? demoMode
+            ? "demo tx (DEMO_MODE)"
+            : result!.payment.paymentResponseHeader!.slice(0, 16) + "..."
+          : undefined
+      },
+      {
+        id: "usage",
+        label: "Usage event persisted",
+        status: hasUsage ? "pass" : "pending",
+        detail: hasUsage ? `${analytics!.totalQueries} total` : undefined
+      },
+      {
+        id: "analytics",
+        label: "Analytics updated",
+        status: hasSpend ? "pass" : "pending",
+        detail: hasSpend ? money(analytics!.totalSpendUsd) + " tracked" : undefined
+      },
+      {
+        id: "receipt",
+        label: "Receipt/export available",
+        status: hasReceipts ? "pass" : "pending",
+        detail: hasReceipts
+          ? `${analytics!.recentTransactions.length} transaction(s)`
+          : undefined
+      }
+    ];
+  }, [providers, result, analytics, demoMode]);
 
   function shortAddress(address: string) {
     if (address.length < 12) {
@@ -126,15 +203,77 @@ export default function ControlDeckPage() {
   const showAnalyticsSkeleton = isAnalyticsLoading && analytics === null;
   const hasUsageHistory = (analytics?.totalQueries ?? 0) > 0;
 
+  type ReceiptFeedback = { kind: "copied" | "downloaded"; at: number } | null;
+  const [receiptFeedback, setReceiptFeedback] = useState<ReceiptFeedback>(null);
+
+  const receipt = useMemo(() => {
+    if (!result) {
+      return null;
+    }
+    return buildReceipt({ response: result, userPaymentMode: paymentMode });
+  }, [result, paymentMode]);
+
+  useEffect(() => {
+    if (!receiptFeedback) {
+      return;
+    }
+    const timer = window.setTimeout(() => setReceiptFeedback(null), 2400);
+    return () => window.clearTimeout(timer);
+  }, [receiptFeedback]);
+
+  function exportReceipt() {
+    if (!receipt) {
+      setError("Run a paid query before exporting a receipt");
+      return;
+    }
+    try {
+      downloadReceipt(receipt);
+      setReceiptFeedback({ kind: "downloaded", at: Date.now() });
+    } catch (exportError) {
+      setError(
+        exportError instanceof Error ? exportError.message : "Failed to export receipt"
+      );
+    }
+  }
+
+  async function copyReceipt() {
+    if (!receipt) {
+      setError("Run a paid query before copying a receipt");
+      return;
+    }
+    try {
+      const copyResult = await copyReceiptToClipboard(receipt);
+      if (!copyResult.ok) {
+        setError("Could not copy receipt to clipboard");
+        return;
+      }
+      setReceiptFeedback({ kind: "copied", at: Date.now() });
+    } catch (copyError) {
+      setError(copyError instanceof Error ? copyError.message : "Failed to copy receipt");
+    }
+  }
+
+  const receiptBadgeLabel: Record<ReceiptPaymentMode, string> = {
+    wallet: "Wallet",
+    sponsored: "Sponsored",
+    demo: "Demo"
+  };
+
+  const receiptHintForCurrent = result
+    ? `Share this receipt in the SCF issue thread to prove the ${receipt?.payment.mode ?? "wallet"} payment trail.`
+    : null;
+
   useEffect(() => {
     async function bootstrap() {
-      const [providersResponse, sponsorshipActive] = await Promise.all([
+      const [providersResponse, sponsorshipActive, health] = await Promise.all([
         fetchJson<{ providers: ProviderDefinition[] }>(`${API_BASE_URL}/api/providers`),
-        fetchSponsorshipEnabled(API_BASE_URL)
+        fetchSponsorshipEnabled(API_BASE_URL),
+        fetchHealth(API_BASE_URL)
       ]);
       setProviders(providersResponse.providers);
       setSelectedProvider(modeDefaultProvider.search);
       setSponsorshipEnabled(sponsorshipActive);
+      setDemoMode(health.demoMode ?? false);
       await refreshMetrics();
     }
 
@@ -313,6 +452,18 @@ export default function ControlDeckPage() {
             label="Queries"
             value={String(analytics?.totalQueries ?? 0)}
             icon={<Activity size={16} />}
+            isLoading={showAnalyticsSkeleton}
+          />
+          <StatTile
+            label="Demo Q"
+            value={String(analytics?.totalDemoQueries ?? 0)}
+            icon={<Sparkles size={16} />}
+            isLoading={showAnalyticsSkeleton}
+          />
+          <StatTile
+            label="Settled"
+            value={String(analytics?.totalSettledPayments ?? 0)}
+            icon={<CircleDollarSign size={16} />}
             isLoading={showAnalyticsSkeleton}
           />
           <StatTile
@@ -498,6 +649,8 @@ export default function ControlDeckPage() {
               <p className="empty-note">Waiting for results. Start a query from the left panel.</p>
             ) : (
               <>
+                <PaymentEvidenceBanner payment={result.payment} />
+
                 <div className="result-meta">
                   <span>{result.result.providerName}</span>
                   <span>{money(result.result.priceUsd)}</span>
@@ -514,55 +667,76 @@ export default function ControlDeckPage() {
                 </div>
 
                 <div className="trace-box">
-                  <p className="trace-row">
-                    <span className="trace-label">Trace ID</span>
-                    <code className="trace-value">{result.traceId}</code>
+                  <p>
+                    payment-evidence: {result.payment.evidence.kind} ({result.payment.evidence.status})
+                  </p>
+                  <p>network: {result.payment.evidence.network}</p>
+                  <p>asset: {result.payment.evidence.asset ?? "<unspecified>"}</p>
+                </div>
+
+                <div className="receipt-card">
+                  <div className="receipt-card-head">
+                    <p className="receipt-eyebrow">Public receipt</p>
+                    <div className="receipt-badges">
+                      {receipt ? (
+                        <span className={`receipt-mode-badge receipt-mode-${receipt.payment.mode}`}>
+                          {receiptBadgeLabel[receipt.payment.mode]}
+                        </span>
+                      ) : null}
+                      {receipt?.payment.transactionHash ? (
+                        <span
+                          className="receipt-tx-pill"
+                          title={receipt.payment.transactionHash}
+                        >
+                          tx {receipt.payment.transactionHash.slice(0, 8)}…
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <p className="receipt-summary">
+                    Trace <strong>{result.result.traceId}</strong> · quoted{" "}
+                    <strong>{money(result.result.priceUsd)}</strong> · payment proof for{" "}
+                    <strong>{result.result.providerName}</strong>
+                  </p>
+
+                  <p className="receipt-hint">{receiptHintForCurrent ?? ""}</p>
+
+                  <div className="receipt-actions">
                     <button
                       type="button"
-                      className="trace-copy-btn"
-                      onClick={() => navigator.clipboard.writeText(result.traceId)}
-                      title="Copy trace ID"
+                      className="ghost-btn receipt-btn"
+                      onClick={exportReceipt}
+                      disabled={!receipt}
+                      title={
+                        receipt
+                          ? `Download ${receiptFilename(receipt)}`
+                          : "Run a paid query first"
+                      }
                     >
-                      Copy
+                      <Download size={14} /> Export JSON receipt
                     </button>
-                  </p>
-                  <p>
-                    evidence:{" "}
-                    {result.payment.evidence?.status ?? result.payment.evidence?.kind ?? "none"}
-                  </p>
-                  <p>network: {result.payment.network}</p>
-                  {result.payment.evidence?.proofLinks && (
-                    <div className="proof-links">
-                      <p>
-                        tx:{" "}
-                        {result.payment.evidence.proofLinks.transaction !== "not_available" ? (
-                          <a
-                            href={result.payment.evidence.proofLinks.transaction}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            {result.payment.evidence.transactionHash?.slice(0, 12)}...
-                          </a>
-                        ) : (
-                          "not_available"
-                        )}
-                      </p>
-                      <p>
-                        payer:{" "}
-                        {result.payment.evidence.proofLinks.payer !== "not_available" ? (
-                          <a
-                            href={result.payment.evidence.proofLinks.payer}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            {result.payment.evidence.payer?.slice(0, 8)}...
-                          </a>
-                        ) : (
-                          "not_available"
-                        )}
-                      </p>
-                    </div>
-                  )}
+                    <button
+                      type="button"
+                      className="ghost-btn receipt-btn"
+                      onClick={copyReceipt}
+                      disabled={!receipt}
+                      title="Copy a paste-ready JSON receipt to your clipboard"
+                    >
+                      {receiptFeedback?.kind === "copied" ? (
+                        <>
+                          <Check size={14} /> Copied
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={14} /> Copy JSON
+                        </>
+                      )}
+                    </button>
+                    {receiptFeedback?.kind === "downloaded" ? (
+                      <span className="receipt-toast">Receipt downloaded ✓</span>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div className="item-stack">
@@ -651,20 +825,63 @@ export default function ControlDeckPage() {
             )}
           </div>
 
-          <div className="feed-panel">
-            <h3>Recent transactions</h3>
+          <div className="analytics-panel">
+            <h3>Spend by payment source</h3>
             {showAnalyticsSkeleton ? (
               <AnalyticsSkeletonRows count={3} />
-            ) : (analytics?.recentTransactions ?? []).length === 0 ? (
+            ) : !hasUsageHistory ? (
               <p className="panel-empty-note">
-                No payments yet. Your x402 settlement history will show up here.
+                No spend recorded yet.
               </p>
             ) : (
-              analytics!.recentTransactions.slice(0, 5).map((tx) => (
+              <ul>
+                {Object.entries(analytics!.spendByPaymentSource).map(([source, amount]) => (
+                  <li key={source}>
+                    <span>{source === "demo" ? "Demo" : source === "sponsored" ? "Sponsored" : source === "wallet" ? "Wallet" : source}</span>
+                    <strong>{money(amount)}</strong>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="feed-panel">
+            <h3>Demo activity (not on-chain)</h3>
+            {showAnalyticsSkeleton ? (
+              <AnalyticsSkeletonRows count={3} />
+            ) : (analytics?.recentDemoActivity ?? []).length === 0 ? (
+              <p className="panel-empty-note">
+                No demo activity yet. Demo-paid queries appear here.
+              </p>
+            ) : (
+              analytics!.recentDemoActivity.slice(0, 5).map((tx) => (
                 <div key={tx.id} className="feed-row">
                   <p>
                     <span>{tx.providerId}</span>
                     <strong>{money(tx.amountUsd)}</strong>
+                    <span className="source-badge demo">demo</span>
+                  </p>
+                  <small>{new Date(tx.createdAt).toLocaleString()}</small>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="feed-panel">
+            <h3>Real settled payments (on-chain)</h3>
+            {showAnalyticsSkeleton ? (
+              <AnalyticsSkeletonRows count={3} />
+            ) : (analytics?.recentSettledPayments ?? []).length === 0 ? (
+              <p className="panel-empty-note">
+                No on-chain settlements yet. Wallet-paid transactions appear here.
+              </p>
+            ) : (
+              analytics!.recentSettledPayments.slice(0, 5).map((tx) => (
+                <div key={tx.id} className="feed-row">
+                  <p>
+                    <span>{tx.providerId}</span>
+                    <strong>{money(tx.amountUsd)}</strong>
+                    <span className="source-badge settled">settled</span>
                   </p>
                   <small>{new Date(tx.createdAt).toLocaleString()}</small>
                   {tx.transactionHash && (
@@ -735,6 +952,19 @@ export default function ControlDeckPage() {
                 2
               )}
             </pre>
+          </div>
+
+          <div className="evidence-panel">
+            <h3>
+              <ShieldCheck size={14} />
+              SCF Evidence Checklist
+              {demoMode ? <span>DEMO</span> : null}
+            </h3>
+            <ul className="evidence-list">
+              {evidenceItems.map((item) => (
+                <EvidenceRow key={item.id} item={item} />
+              ))}
+            </ul>
           </div>
         </aside>
       </main>
@@ -972,4 +1202,23 @@ function denyActionableCopy(decision: string) {
     default:
       return "Policy will deny this request. See the reason above and adjust inputs.";
   }
+}
+
+const evidenceIconMap: Record<string, ReactNode> = {
+  pass: <Check size={10} />,
+  warn: <AlertTriangle size={10} />,
+  pending: <Clock size={10} />
+};
+
+function EvidenceRow(props: { item: EvidenceCheckItem }) {
+  const { item } = props;
+  return (
+    <li className="evidence-item">
+      <span className={`evidence-icon ${item.status}`}>
+        {evidenceIconMap[item.status]}
+      </span>
+      <span className="evidence-label">{item.label}</span>
+      {item.detail ? <span className="evidence-detail">{item.detail}</span> : null}
+    </li>
+  );
 }
