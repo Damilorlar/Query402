@@ -2,7 +2,8 @@ import express from "express";
 import request from "supertest";
 import { providerCapabilitySchema } from "@query402/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { buildPaidQueryFixture, buildTestUsageEvent } from "../test/storage-test-helpers.js";
+import { persistPaymentAndUsage } from "../lib/persistence.js";
+import { buildTestPaymentAttempt, buildTestUsageEvent } from "../test/storage-test-helpers.js";
 import { applyApiTestEnv, resetApiTestStorage } from "../test/api-test-helpers.js";
 
 describe("public routes", () => {
@@ -286,61 +287,46 @@ describe("public routes", () => {
       const { persistPaymentAndUsage } = await import("../lib/persistence.js");
       await persistPaymentAndUsage(buildPaidQueryFixture());
 
-      const app = await createPublicApp();
-      const analyticsResponse = await request(app).get("/api/analytics");
+    const response = await request(app).get("/api/audit/digest");
 
-      expect(analyticsResponse.status).toBe(200);
-      expect(analyticsResponse.body).toMatchObject({
-        totalQueries: 1,
-        totalSpendUsd: 0.01,
-        settledSpendUsd: 0.01,
-        demoSpendUsd: 0,
-        spendByCategory: { search: 0.01, news: 0, scrape: 0 },
-        executionSummary: {
-          totalExecutions: 1,
-          liveExecutions: 1,
-          fallbackExecutions: 0
-        }
-      });
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      totalPaidRuns: 0,
+      totalSettledAmountUsd: 0,
+      settledAmountByAssetNetwork: {},
+      withPaymentEvidence: 0,
+      missingPaymentEvidence: 0,
+      latestPaymentTimestamp: null
+    });
+    expect(response.body.generatedAt).toEqual(expect.any(String));
+  });
+
+  it("returns a populated settlement digest for recorded paid runs", async () => {
+    const firstPayment = buildTestPaymentAttempt({
+      id: "pay_001",
+      amountUsd: 1.25,
+      createdAt: "2026-06-21T10:00:00.000Z",
+      transactionHash: "tx_001"
+    });
+    const firstUsage = buildTestUsageEvent({
+      id: "use_001",
+      createdAt: firstPayment.createdAt,
+      paymentStatus: "settled"
     });
 
-    it("analytics recentUsage and recentTransactions carry fixture evidence fields", async () => {
-      const { persistPaymentAndUsage } = await import("../lib/persistence.js");
-      await persistPaymentAndUsage(buildPaidQueryFixture());
-
-      const app = await createPublicApp();
-      const analyticsResponse = await request(app).get("/api/analytics");
-
-      expect(analyticsResponse.status).toBe(200);
-
-      const { recentUsage, recentTransactions } = analyticsResponse.body;
-
-      expect(recentUsage).toHaveLength(1);
-      expect(recentUsage[0]).toMatchObject({
-        id: "use_fixture_0001",
-        mode: "search",
-        providerId: "search.basic",
-        paymentStatus: "settled",
-        paymentKind: "settled",
-        asset: "USDC:testnet",
-        traceId: "trace_fixture_0001",
-        createdAt: "2026-06-30T12:00:00.000Z"
-      });
-
-      expect(recentTransactions).toHaveLength(1);
-      expect(recentTransactions[0]).toMatchObject({
-        id: "pay_fixture_0001",
-        providerId: "search.basic",
-        amountUsd: 0.01,
-        evidenceKind: "settled",
-        asset: "USDC:testnet",
-        status: "settled"
-      });
+    const secondPayment = buildTestPaymentAttempt({
+      id: "pay_002",
+      amountUsd: 0.5,
+      createdAt: "2026-06-21T10:05:00.000Z"
+    });
+    const secondUsage = buildTestUsageEvent({
+      id: "use_002",
+      createdAt: secondPayment.createdAt,
+      paymentStatus: "settled"
     });
 
-    it("fixture data is unchanged across multiple insertions into separate stores", async () => {
-      const first = buildPaidQueryFixture();
-      const second = buildPaidQueryFixture();
+    await persistPaymentAndUsage({ payment: firstPayment, usage: firstUsage });
+    await persistPaymentAndUsage({ payment: secondPayment, usage: secondUsage });
 
       expect(first.payment).toEqual(second.payment);
       expect(first.usage).toEqual(second.usage);
@@ -387,6 +373,7 @@ describe("public routes", () => {
         evidenceKind: "demo"
       });
     });
+    expect(response.body.generatedAt).toEqual(expect.any(String));
   });
 
   it("returns safe default analytics shape for fresh storage", async () => {

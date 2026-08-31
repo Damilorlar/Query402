@@ -125,6 +125,10 @@ export async function getAnalyticsSummary(
   return getStorageRepository().getAnalyticsSummary(options);
 }
 
+export async function getSettlementDigest(): Promise<SettlementDigest> {
+  return getStorageRepository().getSettlementDigest();
+}
+
 export async function persistPaidRequest(input: PersistPaidRequestInput): Promise<void> {
   const payment = buildPaymentAttempt(input);
   const usage = buildUsageEvent(input, {
