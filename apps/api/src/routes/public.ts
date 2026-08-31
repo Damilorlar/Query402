@@ -29,8 +29,11 @@ publicRouter.get("/health", (_req, res) => {
     sponsorshipEnabled: config.sponsorshipEnabled,
     demoMode: config.demoMode,
     timestamp: new Date().toISOString(),
+
+
     uptimeSeconds: process.uptime(),
     diagnostics: getConfigSnapshot()
+
   });
 });
 
