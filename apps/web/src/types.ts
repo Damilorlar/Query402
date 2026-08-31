@@ -1,25 +1,26 @@
-import type { ProviderDefinition, QueryMode, QueryResult, PrivacySafeAnalyticsResponse } from "@query402/shared";
+import type { LatencyBucket, ProviderDefinition, QueryMode, QueryResult } from "@query402/shared";
 
-export interface PaymentProofLinks {
-  transaction: string;
-  payer: string;
-  payTo: string;
-  network: string;
-  asset: string;
-}
-
-export interface PaymentEvidenceSummary {
-  kind: string;
-  status: string;
+/**
+ * Public-safe projection of `paymentEvidenceSummary` from the API.
+ *
+ * Intentionally excludes:
+ *  - `payer` wallet address (would leak a specific signer in a public SCF issue)
+ *  - `facilitatorResult` payload (could contain signed auth entries)
+ *  - grant signatures, grant headers, raw payment headers, secrets
+ *
+ * All other fields are populated by the API contract (idempotency/x402.ts
+ * `buildPaidResponse`). The receipt builder downgrades any missing value to
+ * `null` so the exported JSON stays diff-friendly.
+ */
+export interface PublicPaymentEvidence {
+  kind: "demo" | "verified" | "settled" | "failed";
+  status: "demo-paid" | "verified" | "settled" | "failed" | "settlement-pending";
   network: string;
   asset?: string;
   amount?: string;
-  payTo: string;
-  facilitatorUrl: string;
-  payer?: string;
+  payTo?: string;
+  facilitatorUrl?: string;
   transactionHash?: string;
-  proofLinks: PaymentProofLinks;
-  error?: string;
 }
 
 export interface PaidQueryResponse {
@@ -27,8 +28,7 @@ export interface PaidQueryResponse {
   payment: {
     network: string;
     facilitatorUrl: string;
-    paymentResponseHeader: string | null;
-    evidence?: PaymentEvidenceSummary;
+    evidence: PublicPaymentEvidence;
   };
   result: QueryResult;
 }
@@ -74,7 +74,7 @@ export interface AnalyticsResponse {
     amountUsd: number;
     endpoint: string;
     providerId: string;
-    status: string;
+    evidence: PaymentEvidence;
     createdAt: string;
     transactionHash?: string;
     payerPublicKey?: string;
@@ -89,7 +89,7 @@ export interface AnalyticsResponse {
     priceUsd: number;
     createdAt: string;
     latencyMs: number;
-    paymentStatus: string;
+    evidence: PaymentEvidence;
     traceId: string;
     execution?: {
       providerId: string;
