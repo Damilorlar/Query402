@@ -18,6 +18,19 @@ export type PaidRouteErrorCode = z.infer<typeof paidRouteErrorCodeSchema>;
 
 export type LatencyBucket = "<1s" | "1-3s" | "3-10s" | ">10s" | "unknown";
 
+export type LatencyBand = "fast" | "standard" | "slow";
+export type ReliabilityBand = "demo" | "fallback" | "live";
+export type PaymentMode = "demo" | "x402" | "sponsored";
+
+export interface SlaBadges {
+  latencyBand: LatencyBand;
+  latencyLabel: string;
+  reliabilityBand: ReliabilityBand;
+  reliabilityLabel: string;
+  paymentMode: PaymentMode;
+  paymentLabel: string;
+}
+
 export interface ProviderExecutionMetadata {
   providerId: string;
   source: SourceType;

@@ -202,6 +202,59 @@ describe("provider catalog baseline", () => {
   }
 });
 
+describe("provider SLA badges shape", () => {
+  it("every provider has slaBadges with all required fields", () => {
+    for (const p of providers) {
+      expect(p.slaBadges).toBeDefined();
+      expect(["fast", "standard", "slow"]).toContain(p.slaBadges.latencyBand);
+      expect(["demo", "fallback", "live"]).toContain(p.slaBadges.reliabilityBand);
+      expect(["demo", "x402", "sponsored"]).toContain(p.slaBadges.paymentMode);
+      expect(typeof p.slaBadges.latencyLabel).toBe("string");
+      expect(p.slaBadges.latencyLabel.length).toBeGreaterThan(0);
+      expect(typeof p.slaBadges.reliabilityLabel).toBe("string");
+      expect(p.slaBadges.reliabilityLabel.length).toBeGreaterThan(0);
+      expect(typeof p.slaBadges.paymentLabel).toBe("string");
+      expect(p.slaBadges.paymentLabel.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("derives correct latencyBand for each provider", () => {
+    const expectations: Record<string, string> = {
+      "search.live": "standard",
+      "search.basic": "fast",
+      "search.pro": "standard",
+      "news.fast": "fast",
+      "news.deep": "standard",
+      "scrape.page": "standard",
+      "scrape.extract": "slow"
+    };
+
+    for (const [id, expectedBand] of Object.entries(expectations)) {
+      const provider = providers.find((p) => p.id === id);
+      expect(provider, `Provider "${id}" not found`).toBeDefined();
+      expect(provider!.slaBadges.latencyBand).toBe(expectedBand);
+    }
+  });
+
+  it("derives correct reliabilityBand from sourceType", () => {
+    for (const p of providers) {
+      const expectedBand =
+        p.sourceType === "live"
+          ? "live"
+          : p.sourceType === "deterministic-fallback"
+            ? "fallback"
+            : "demo";
+      expect(p.slaBadges.reliabilityBand).toBe(expectedBand);
+    }
+  });
+
+  it("all providers have paymentMode x402", () => {
+    for (const p of providers) {
+      expect(p.slaBadges.paymentMode).toBe("x402");
+    }
+  });
+});
+
 describe("x402 cross-layer price consistency", () => {
   // Convert USD to integer micro-USD units to eliminate IEEE 754 float comparison risk.
   function toMicroUsd(value: number): number {
