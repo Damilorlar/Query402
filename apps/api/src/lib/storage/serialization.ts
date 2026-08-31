@@ -1,6 +1,7 @@
 import type {
   AnalyticsSummary,
   ExecutionFallbackReason,
+  LatencyBucket,
   PaymentAttempt,
   QueryMode,
   UsageEvent
@@ -12,6 +13,18 @@ type UsageExecution = NonNullable<UsageEvent["execution"]>;
 
 function emptySpendByCategory(): Record<QueryMode, number> {
   return { search: 0, news: 0, scrape: 0 };
+}
+
+function emptyLatencyBuckets(): Record<LatencyBucket, number> {
+  return { "<1s": 0, "1-3s": 0, "3-10s": 0, ">10s": 0, unknown: 0 };
+}
+
+function classifyLatency(latencyMs: number): LatencyBucket {
+  if (latencyMs <= 0) return "unknown";
+  if (latencyMs < 1000) return "<1s";
+  if (latencyMs < 3000) return "1-3s";
+  if (latencyMs < 10000) return "3-10s";
+  return ">10s";
 }
 
 function emptyExecutionSummary(): NonNullable<AnalyticsSummary["executionSummary"]> {
@@ -112,6 +125,15 @@ export function buildAnalyticsSummary(
     emptyExecutionSummary()
   );
 
+  const totalDemoQueries = usage.filter((e) => e.paymentStatus === "demo-paid").length;
+  const totalSettledPayments = usage.filter((e) => e.paymentStatus === "settled").length;
+
+  const spendByPaymentSource = payments.reduce<Record<string, number>>((acc, p) => {
+    const source = p.paymentSource ?? "unknown";
+    acc[source] = Number(((acc[source] ?? 0) + p.amountUsd).toFixed(6));
+    return acc;
+  }, {});
+
   const recentUsageLimit = options?.recentUsageLimit ?? DEFAULT_RECENT_LIMIT;
   const recentPaymentLimit = options?.recentPaymentLimit ?? DEFAULT_RECENT_LIMIT;
 
@@ -125,6 +147,15 @@ export function buildAnalyticsSummary(
     settledSpendByCategory,
     demoSpendByCategory,
     executionSummary,
+    totalDemoQueries,
+    totalSettledPayments,
+    spendByPaymentSource,
+    recentDemoActivity: payments
+      .filter((p) => p.status === "demo-paid")
+      .slice(0, recentPaymentLimit),
+    recentSettledPayments: payments
+      .filter((p) => p.status === "settled")
+      .slice(0, recentPaymentLimit),
     recentTransactions: payments.slice(0, recentPaymentLimit),
     recentUsage: usage.slice(0, recentUsageLimit)
   };
@@ -159,7 +190,9 @@ export function usageEventToRow(event: UsageEvent) {
     sponsorship_grant_id: event.sponsorshipGrantId ?? null,
     policy_decision: event.policyDecision ?? null,
     payment_source: event.paymentSource ?? null,
-    sponsor_public_key: event.sponsorPublicKey ?? null
+    sponsor_public_key: event.sponsorPublicKey ?? null,
+    price_outlier: event.priceOutlier ? 1 : 0,
+    price_outlier_reason: event.priceOutlierReason ?? null
   };
 }
 
@@ -171,6 +204,8 @@ export function rowToUsageEvent(row: Record<string, unknown>): UsageEvent {
     row.execution_latency_estimate_ms !== undefined ||
     row.execution_observed_duration_ms !== undefined ||
     row.execution_circuit_breaker_state !== undefined;
+
+  const priceOutlier = row.price_outlier === 1 || row.price_outlier === true;
 
   return {
     id: String(row.id),
@@ -211,7 +246,9 @@ export function rowToUsageEvent(row: Record<string, unknown>): UsageEvent {
     paymentSource: row.payment_source
       ? (row.payment_source as UsageEvent["paymentSource"])
       : undefined,
-    sponsorPublicKey: row.sponsor_public_key ? String(row.sponsor_public_key) : undefined
+    sponsorPublicKey: row.sponsor_public_key ? String(row.sponsor_public_key) : undefined,
+    priceOutlier: priceOutlier || undefined,
+    priceOutlierReason: row.price_outlier_reason ? String(row.price_outlier_reason) : undefined
   };
 }
 
@@ -238,7 +275,8 @@ export function paymentAttemptToRow(payment: PaymentAttempt) {
     sponsorship_grant_id: payment.sponsorshipGrantId ?? null,
     policy_decision: payment.policyDecision ?? null,
     payment_source: payment.paymentSource ?? null,
-    sponsor_public_key: payment.sponsorPublicKey ?? null
+    sponsor_public_key: payment.sponsorPublicKey ?? null,
+    error_code: payment.errorCode ?? null
   };
 }
 
@@ -269,6 +307,7 @@ export function rowToPaymentAttempt(row: Record<string, unknown>): PaymentAttemp
     paymentSource: row.payment_source
       ? (row.payment_source as PaymentAttempt["paymentSource"])
       : undefined,
-    sponsorPublicKey: row.sponsor_public_key ? String(row.sponsor_public_key) : undefined
+    sponsorPublicKey: row.sponsor_public_key ? String(row.sponsor_public_key) : undefined,
+    errorCode: row.error_code ? (row.error_code as PaymentAttempt["errorCode"]) : undefined
   };
 }

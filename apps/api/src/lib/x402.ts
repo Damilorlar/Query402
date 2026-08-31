@@ -45,7 +45,7 @@ function getProviderFromContext(context: HTTPRequestContext) {
   return rawProvider;
 }
 
-function resolveRoutePrice(context: HTTPRequestContext, mode: RouteMode) {
+export function resolveRoutePrice(context: HTTPRequestContext, mode: RouteMode) {
   const providerId = getProviderFromContext(context);
   if (!providerId) {
     return basePriceByMode[mode];
@@ -99,6 +99,7 @@ function demoMode402Middleware(req: Request, res: Response, next: NextFunction) 
 
   return res.status(402).json({
     error: "Payment Required",
+    errorCode: "payment_required",
     demoMode: true,
     debug,
     accepts: {
@@ -112,6 +113,76 @@ function demoMode402Middleware(req: Request, res: Response, next: NextFunction) 
       "For deterministic demo mode, retry with header x-query402-demo-paid: true. Demo evidence is recorded separately from settled x402 payments."
   });
 }
+
+export const getX402LifecycleHandlers = (network: string) => ({
+  onAfterVerify: async (ctx: any) => {
+    const transport = ctx.transportContext as { request?: Request, req?: Request } | Request;
+    const req = ('headers' in transport) ? transport : (transport.request || transport.req);
+    
+    if (req) {
+      const paymentId = `pay_${nanoid(10)}`;
+      req.headers["x-payment-attempt-id"] = paymentId;
+      
+      const providerId = getProviderFromContext(ctx.transportContext) ?? "unknown";
+      
+      savePaymentAttempt({
+        id: paymentId,
+        endpoint: req.path,
+        providerId,
+        evidence: {
+          status: "verified",
+          network,
+          amountUsd: Number(ctx.requirements.amount),
+          payToAddress: ctx.requirements.payTo,
+          facilitatorUrl: config.X402_FACILITATOR_URL,
+          paymentPayload: typeof ctx.paymentPayload === "string" ? ctx.paymentPayload : JSON.stringify(ctx.paymentPayload)
+        },
+        createdAt: new Date().toISOString()
+      });
+    }
+  },
+
+  onAfterSettle: async (ctx: any) => {
+    const transport = ctx.transportContext as { request?: Request, req?: Request } | Request;
+    const req = ('headers' in transport) ? transport : (transport.request || transport.req);
+    const paymentId = req?.headers?.["x-payment-attempt-id"] as string | undefined;
+    
+    if (paymentId) {
+      const evidence = {
+        status: "settled" as const,
+        network,
+        amountUsd: Number(ctx.requirements.amount),
+        payToAddress: ctx.requirements.payTo,
+        facilitatorUrl: config.X402_FACILITATOR_URL,
+        transactionHash: ctx.result.transaction,
+        paymentPayload: typeof ctx.paymentPayload === "string" ? ctx.paymentPayload : JSON.stringify(ctx.paymentPayload)
+      };
+      updatePaymentAttemptEvidence(paymentId, evidence);
+      updateUsageEventsByPaymentId(paymentId, evidence);
+    }
+  },
+
+  onSettleFailure: async (ctx: any) => {
+    const transport = ctx.transportContext as { request?: Request, req?: Request } | Request;
+    const req = ('headers' in transport) ? transport : (transport.request || transport.req);
+    const paymentId = req?.headers?.["x-payment-attempt-id"] as string | undefined;
+
+    if (paymentId) {
+      const evidence = {
+        status: "failed" as const,
+        network,
+        amountUsd: Number(ctx.requirements.amount),
+        payToAddress: ctx.requirements.payTo,
+        facilitatorUrl: config.X402_FACILITATOR_URL,
+        error: ctx.error?.message ?? "Payment settlement failed",
+        paymentPayload: ctx.paymentPayload ? (typeof ctx.paymentPayload === "string" ? ctx.paymentPayload : JSON.stringify(ctx.paymentPayload)) : undefined
+      };
+      
+      updatePaymentAttemptEvidence(paymentId, evidence);
+      updateUsageEventsByPaymentId(paymentId, evidence);
+    }
+  }
+});
 
 export function createX402Middleware() {
   if (config.demoMode) {
@@ -174,7 +245,12 @@ export function createX402Middleware() {
 
     return {
       contentType: "application/json",
-      body: { error: "Payment settlement failed", type: "payment_settlement_failed", debug }
+      body: {
+        error: "Payment settlement failed",
+        type: "payment_settlement_failed",
+        errorCode: "payment_invalid",
+        debug
+      }
     };
   };
 
@@ -243,11 +319,17 @@ export function createX402Middleware() {
   return async (req: Request, res: Response, next: NextFunction) => {
     const originalJson = res.json.bind(res);
     res.json = function (body: unknown) {
-      if (res.statusCode === 402 && body && typeof body === "object" && !("debug" in (body as Record<string, unknown>))) {
+      if (
+        res.statusCode === 402 &&
+        body &&
+        typeof body === "object" &&
+        !("debug" in (body as Record<string, unknown>))
+      ) {
         const pId = Array.isArray(req.query.provider)
           ? req.query.provider[0]
           : (req.query.provider ?? "unknown");
-        const paymentHeader = req.header("payment-signature") ?? req.header("x-payment") ?? undefined;
+        const paymentHeader =
+          req.header("payment-signature") ?? req.header("x-payment") ?? undefined;
         const mode = routeModeFromPath(req.path);
         let expectedPrice = "$0.01";
         if (mode) {

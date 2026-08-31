@@ -26,13 +26,24 @@ async function persistDemoEvidenceIfNeeded(input: { req: Request; record: PaidRe
 
 function buildPaidResponse(req: Request, result: QueryResult) {
   const evidence = getPaymentEvidence(req);
+  const network = evidence?.network ?? config.STELLAR_NETWORK;
+  const facilitatorUrl = evidence?.facilitatorUrl ?? config.X402_FACILITATOR_URL;
+  const payTo = evidence?.payTo ?? config.X402_PAY_TO_ADDRESS;
+  const evidencePayload = evidence
+    ? paymentEvidenceSummary(evidence)
+    : {
+        kind: "verified" as const,
+        status: "settlement-pending" as const,
+        network,
+        payTo,
+        facilitatorUrl
+      };
   return {
+    traceId: result.traceId,
     payment: {
-      network: evidence?.network ?? config.STELLAR_NETWORK,
-      facilitatorUrl: evidence?.facilitatorUrl ?? config.X402_FACILITATOR_URL,
-      evidence: evidence
-        ? paymentEvidenceSummary(evidence)
-        : { kind: "verified", status: "settlement-pending" }
+      network,
+      facilitatorUrl,
+      evidence: evidencePayload
     },
     result
   };
