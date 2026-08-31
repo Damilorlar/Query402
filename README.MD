@@ -228,6 +228,46 @@ Scrape:
 npm run cli -- scrape "https://developers.stellar.org" --provider scrape.page
 ```
 
+### Structured receipts
+
+Pass `--receipt` when a script or log needs a machine-readable result instead of the human-readable summary. `--json` is an alias for the same output. Both flags print a JSON object containing only public receipt fields: `command`, `provider`, the (possibly shortened) `input`, `price`, and `traceId`. Inputs longer than 50 characters are automatically shortened to 47 characters plus `...`; payment headers, wallet keys, and the raw response are not included.
+
+With the API running in demo mode (`DEMO_MODE=true`), these local commands require no real credentials:
+
+Query receipt:
+
+```bash
+DEMO_MODE=true npm run cli -- search "latest soroban updates" --provider search.basic --receipt
+```
+
+```json
+{
+  "command": "search",
+  "provider": "search.basic",
+  "input": "latest soroban updates",
+  "price": 0.01,
+  "traceId": "trace_<generated>"
+}
+```
+
+Scrape receipt (using the `--json` alias):
+
+```bash
+DEMO_MODE=true npm run cli -- scrape "https://example.com" --provider scrape.page --json
+```
+
+```json
+{
+  "command": "scrape",
+  "provider": "scrape.page",
+  "input": "https://example.com",
+  "price": 0.02,
+  "traceId": "trace_<generated>"
+}
+```
+
+Demo receipts are local evidence of the request flow only. They do not represent a settled Stellar payment; use the real-payment validation flow below for live payment proof.
+
 Full CLI showcase:
 
 ```bash
