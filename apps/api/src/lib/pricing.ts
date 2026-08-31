@@ -1,43 +1,40 @@
-import type { ProviderDefinition, SlaBadges } from "@query402/shared";
+import type { ProviderCapability, ProviderDefinition } from "@query402/shared";
 
-function deriveSlaBadges(providerData: {
-  sourceType: ProviderDefinition["sourceType"];
-  latencyEstimateMs: number;
-}): SlaBadges {
-  const latencyBand =
-    providerData.latencyEstimateMs <= 800
-      ? "fast"
-      : providerData.latencyEstimateMs <= 1500
-        ? "standard"
-        : "slow";
+const envKeyMapping: Record<string, string[]> = {
+  "search.live": ["GROQ_API_KEY"],
+  "search.basic": ["GROQ_API_KEY"],
+  "search.pro": ["GROQ_API_KEY"],
+  "news.fast": ["GROQ_API_KEY"],
+  "news.deep": ["GROQ_API_KEY"],
+  "scrape.page": ["GROQ_API_KEY"],
+  "scrape.extract": ["GROQ_API_KEY"]
+};
 
-  const latencyLabels: Record<string, string> = {
-    fast: "Fast response",
-    standard: "Standard latency",
-    slow: "Higher latency"
-  };
+function computeCaveat(providerId: string): string | null {
+  const required = envKeyMapping[providerId];
+  if (!required) return null;
+  const missing = required.filter((key) => !process.env[key]);
+  if (missing.length === 0) return null;
+  return `${missing.join(", ")} not configured — falling back to deterministic results`;
+}
 
-  const reliabilityBand =
-    providerData.sourceType === "live"
-      ? "live"
-      : providerData.sourceType === "deterministic-fallback"
-        ? "fallback"
-        : "demo";
-
-  const reliabilityLabels: Record<string, string> = {
-    live: "Live results",
-    fallback: "Fallback cached",
-    demo: "Demo reliability"
-  };
-
-  return {
-    latencyBand,
-    latencyLabel: latencyLabels[latencyBand],
-    reliabilityBand,
-    reliabilityLabel: reliabilityLabels[reliabilityBand],
-    paymentMode: "x402",
-    paymentLabel: "Pay-per-query (x402)"
-  };
+export function buildCapabilityMatrix(): ProviderCapability[] {
+  return providers
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      category: p.category,
+      priceUsd: p.priceUsd,
+      sourceType: p.sourceType,
+      latencyEstimateMs: p.latencyEstimateMs,
+      enabled: p.enabled,
+      hasFallback: true,
+      caveat: computeCaveat(p.id)
+    }))
+    .sort((a, b) => {
+      const cat = a.category.localeCompare(b.category);
+      return cat !== 0 ? cat : a.id.localeCompare(b.id);
+    });
 }
 
 export const providers: ProviderDefinition[] = [

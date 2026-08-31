@@ -17,22 +17,20 @@ export interface SummaryInput {
 /** Formats the post-query summary table. Pure function — safe to unit-test directly. */
 export function formatSummary(input: SummaryInput): string {
   const rows: [string, string][] = [
-    ["Mode",        input.mode],
-    ["Provider",    input.provider],
-    ["Status",      String(input.status)],
-    ["Client",      input.isDemoMode ? "demo" : "real"],
+    ["Mode", input.mode],
+    ["Provider", input.provider],
+    ["Status", String(input.status)],
+    ["Client", input.isDemoMode ? "demo" : "real"],
     ["Price (USD)", input.priceUsd != null ? String(input.priceUsd) : "n/a"],
-    ["Asset",       input.asset ?? "n/a"],
-    ["Trace ID",    input.traceId ?? "unavailable"],
-    ["Evidence ID", input.evidenceId ?? "unavailable"],
+    ["Asset", input.asset ?? "n/a"],
+    ["Trace ID", input.traceId ?? "unavailable"],
+    ["Evidence ID", input.evidenceId ?? "unavailable"]
   ];
   if (input.latencyMs != null) {
     rows.push(["Latency", `${input.latencyMs}ms`]);
   }
   const labelWidth = Math.max(...rows.map(([label]) => label.length));
-  const body = rows
-    .map(([label, value]) => `  ${label.padEnd(labelWidth)}  ${value}`)
-    .join("\n");
+  const body = rows.map(([label, value]) => `  ${label.padEnd(labelWidth)}  ${value}`).join("\n");
   const divider = "=".repeat(labelWidth + 4 + 20);
   return `\n=== Query402 Paid Query Summary ===\n${body}\n${divider}`;
 }
@@ -42,6 +40,9 @@ function usage() {
   console.log('  npm run cli -- search "latest soroban updates" --provider search.basic');
   console.log('  npm run cli -- news "stablecoin micropayments" --provider news.fast');
   console.log('  npm run cli -- scrape "https://example.com" --provider scrape.page');
+  console.log("Options:");
+  console.log("  --provider <id>    Provider ID (default: search.basic / news.fast / scrape.page)");
+  console.log("  --receipt, --json  Output structured JSON receipt only");
 }
 
 function readArg(flag: string, args: string[]) {
@@ -52,10 +53,36 @@ function readArg(flag: string, args: string[]) {
   return args[index + 1];
 }
 
+function hasFlag(flag: string, args: string[]) {
+  return args.includes(flag);
+}
+
+export function redactInput(input: string): string {
+  if (input.length <= 50) return input;
+  return input.slice(0, 47) + "...";
+}
+
+export function buildReceipt(input: {
+  mode: QueryMode;
+  provider: string;
+  term: string;
+  price?: string | number;
+  traceId?: string;
+}) {
+  return {
+    command: input.mode,
+    provider: input.provider,
+    input: redactInput(input.term),
+    price: input.price ?? null,
+    traceId: input.traceId ?? null
+  };
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const modeArg = args[0];
   const term = args[1];
+  const receiptMode = hasFlag("--receipt", args) || hasFlag("--json", args);
 
   if (!modeArg || !["search", "news", "scrape"].includes(modeArg)) {
     usage();
@@ -88,8 +115,27 @@ async function main() {
   const latencyMs = Date.now() - start;
 
   const payload = result.body as Record<string, unknown>;
-  const resultBlock = (payload?.result ?? (payload?.body as Record<string, unknown>)?.result) as Record<string, unknown> | undefined;
-  const evidenceBlock = (payload?.payment as Record<string, unknown>)?.evidence as Record<string, unknown> | undefined;
+  const resultBlock = (payload?.result ?? (payload?.body as Record<string, unknown>)?.result) as
+    Record<string, unknown> | undefined;
+  const evidenceBlock = (payload?.payment as Record<string, unknown>)?.evidence as
+    Record<string, unknown> | undefined;
+
+  if (receiptMode) {
+    console.log(
+      JSON.stringify(
+        buildReceipt({
+          mode,
+          provider,
+          term,
+          price: resultBlock?.priceUsd as string | number | undefined,
+          traceId: resultBlock?.traceId as string | undefined
+        }),
+        null,
+        2
+      )
+    );
+    return;
+  }
 
   console.log(
     formatSummary({
@@ -101,7 +147,7 @@ async function main() {
       asset: (evidenceBlock?.proofLinks as Record<string, string> | undefined)?.asset,
       traceId: resultBlock?.traceId as string | undefined,
       evidenceId: (evidenceBlock?.id ?? evidenceBlock?.evidenceId) as string | undefined,
-      latencyMs,
+      latencyMs
     })
   );
 }

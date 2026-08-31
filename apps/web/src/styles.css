@@ -1042,43 +1042,155 @@ body {
   margin: 0;
 }
 
-.trace-box .proof-links {
-  margin-top: 0.35rem;
-  padding-top: 0.35rem;
-  border-top: 1px solid rgba(116, 147, 188, 0.2);
+.receipt-card {
+  margin-top: 0.65rem;
+  border: 1px solid rgba(118, 224, 255, 0.24);
+  border-radius: 12px;
+  padding: 0.7rem 0.78rem;
+  background: linear-gradient(150deg, rgba(10, 18, 28, 0.88), rgba(7, 12, 20, 0.82));
+  display: grid;
+  gap: 0.55rem;
+  position: relative;
+  overflow: hidden;
 }
 
-.trace-box .proof-links a {
-  color: #6cf;
-  text-decoration: underline;
-  text-underline-offset: 2px;
+.receipt-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  pointer-events: none;
+  background: linear-gradient(
+    110deg,
+    transparent 0%,
+    rgba(118, 224, 255, 0.05) 35%,
+    rgba(186, 130, 255, 0.07) 65%,
+    transparent 100%
+  );
 }
 
-.trace-box .proof-links a:hover {
-  color: #8ef;
+.receipt-card-head,
+.receipt-actions,
+.receipt-badges {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.receipt-card-head {
+  justify-content: space-between;
+}
+
+.receipt-eyebrow {
+  margin: 0;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #7fdbff;
+}
+
+.receipt-badges {
+  gap: 0.35rem;
+}
+
+.receipt-mode-badge,
+.receipt-tx-pill {
+  border-radius: 999px;
+  padding: 0.22rem 0.55rem;
+  font-size: 0.7rem;
+  font-family:
+    "IBM Plex Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", monospace;
+  letter-spacing: 0.04em;
+}
+
+.receipt-mode-badge {
+  border: 1px solid rgba(124, 220, 255, 0.4);
+  background: rgba(72, 217, 255, 0.14);
+  color: #e1f6ff;
+}
+
+.receipt-mode-badge.receipt-mode-wallet {
+  border-color: rgba(124, 209, 255, 0.42);
+  background: rgba(72, 217, 255, 0.16);
+}
+
+.receipt-mode-badge.receipt-mode-sponsored {
+  border-color: rgba(217, 142, 255, 0.45);
+  background: rgba(193, 122, 255, 0.16);
+  color: #f3e2ff;
+}
+
+.receipt-mode-badge.receipt-mode-demo {
+  border-color: rgba(255, 196, 122, 0.42);
+  background: rgba(255, 168, 112, 0.14);
+  color: #ffe0c2;
+}
+
+.receipt-tx-pill {
+  border: 1px solid rgba(140, 220, 195, 0.4);
+  background: rgba(118, 222, 174, 0.14);
+  color: #c5ffea;
+}
+
+.receipt-summary {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  font-size: 0.78rem;
+  color: #c8e0ff;
+  line-height: 1.45;
+}
+
+.receipt-summary strong {
+  color: #f2f8ff;
+}
+
+.receipt-hint {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  font-size: 0.72rem;
+  color: #92a8c6;
+}
+
+.receipt-actions {
+  justify-content: flex-start;
+  gap: 0.45rem;
+}
+
+.receipt-btn {
+  font-size: 0.74rem;
+  padding: 0.42rem 0.62rem;
+}
+
+.receipt-btn:hover:not(:disabled) {
+  border-color: rgba(118, 224, 255, 0.6);
+  background: linear-gradient(130deg, rgba(72, 217, 255, 0.18), rgba(184, 110, 255, 0.12));
+  color: #eaf6ff;
+}
+
+.receipt-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.35);
+}
+
+.receipt-toast {
+  font-size: 0.72rem;
+  color: #b4ffd9;
+  border: 1px solid rgba(118, 222, 174, 0.4);
+  border-radius: 999px;
+  padding: 0.18rem 0.5rem;
+  background: rgba(118, 222, 174, 0.12);
 }
 
 .feed-row .proof-link {
   display: block;
   margin-top: 0.15rem;
-}
-
-.trace-copy-btn {
-  background: rgba(76, 144, 226, 0.15);
-  border: 1px solid rgba(76, 144, 226, 0.35);
-  border-radius: 6px;
-  color: #8bb9ff;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 0.65rem;
-  padding: 0.2rem 0.45rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  transition:
-    background 0.15s,
-    border-color 0.15s,
-    color 0.15s;
-  white-space: nowrap;
 }
 
 .feed-row .proof-link a {
@@ -1295,6 +1407,96 @@ body {
     "Liberation Mono", monospace;
   font-size: 0.72rem;
   line-height: 1.5;
+}
+
+.evidence-panel {
+  border: 1px solid rgba(129, 160, 201, 0.24);
+  border-radius: 14px;
+  background: rgba(11, 16, 26, 0.84);
+  padding: 0.72rem;
+}
+
+.evidence-panel h3 {
+  margin: 0 0 0.55rem;
+  color: #e8f2ff;
+  font-size: 0.86rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.evidence-panel h3 span {
+  font-size: 0.65rem;
+  color: #fbbf24;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 999px;
+  padding: 0.08rem 0.4rem;
+  background: rgba(251, 191, 36, 0.1);
+}
+
+.evidence-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.evidence-item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid rgba(130, 160, 196, 0.18);
+  border-radius: 9px;
+  padding: 0.35rem 0.5rem;
+  background: rgba(13, 18, 30, 0.5);
+  font-size: 0.75rem;
+  transition: border-color 170ms ease;
+}
+
+.evidence-item .evidence-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+  font-size: 0.6rem;
+  font-weight: 700;
+}
+
+.evidence-item .evidence-icon.pass {
+  background: rgba(52, 211, 153, 0.18);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+}
+
+.evidence-item .evidence-icon.warn {
+  background: rgba(251, 191, 36, 0.18);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+}
+
+.evidence-item .evidence-icon.pending {
+  background: rgba(107, 114, 128, 0.18);
+  color: #6b7280;
+  border: 1px solid rgba(107, 114, 128, 0.35);
+}
+
+.evidence-item .evidence-label {
+  flex: 1;
+  color: #dce9ff;
+}
+
+.evidence-item .evidence-detail {
+  color: #768ba8;
+  font-size: 0.65rem;
+  font-family:
+    "IBM Plex Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", monospace;
 }
 
 @media (max-width: 1140px) {
@@ -2335,4 +2537,157 @@ body {
     width: 52px;
     height: 52px;
   }
+}
+
+/* Payment Evidence Banners */
+.payment-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.8rem;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+  animation: cardIn 400ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.payment-banner:hover {
+  transform: translateY(-1px);
+}
+
+.payment-banner-main {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.payment-banner-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.payment-banner-title {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.payment-banner-desc {
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.4;
+}
+
+.payment-banner-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.banner-icon {
+  flex-shrink: 0;
+}
+
+/* Verified Status Styles */
+.payment-banner--verified {
+  background: rgba(16, 185, 129, 0.06);
+  border-color: rgba(16, 185, 129, 0.24);
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.03);
+}
+.payment-banner--verified:hover {
+  border-color: rgba(16, 185, 129, 0.4);
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.06);
+}
+.payment-banner--verified .payment-banner-title {
+  color: #34d399;
+}
+.payment-banner--verified .payment-banner-desc {
+  color: #a7f3d0;
+}
+.payment-banner--verified .icon-verified {
+  color: #34d399;
+  filter: drop-shadow(0 0 4px rgba(52, 211, 153, 0.3));
+}
+.payment-banner--verified .payment-banner-link {
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.2);
+}
+.payment-banner--verified .payment-banner-link:hover {
+  background: rgba(16, 185, 129, 0.18);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+/* Demo Status Styles */
+.payment-banner--demo {
+  background: rgba(245, 158, 11, 0.06);
+  border-color: rgba(245, 158, 11, 0.24);
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.03);
+}
+.payment-banner--demo:hover {
+  border-color: rgba(245, 158, 11, 0.4);
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.06);
+}
+.payment-banner--demo .payment-banner-title {
+  color: #fbbf24;
+}
+.payment-banner--demo .payment-banner-desc {
+  color: #fde68a;
+}
+.payment-banner--demo .icon-demo {
+  color: #fbbf24;
+  filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.3));
+}
+
+/* Failed Status Styles */
+.payment-banner--failed {
+  background: rgba(239, 68, 68, 0.06);
+  border-color: rgba(239, 68, 68, 0.24);
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.03);
+}
+.payment-banner--failed:hover {
+  border-color: rgba(239, 68, 68, 0.4);
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.06);
+}
+.payment-banner--failed .payment-banner-title {
+  color: #f87171;
+}
+.payment-banner--failed .payment-banner-desc {
+  color: #fca5a5;
+}
+.payment-banner--failed .icon-failed {
+  color: #f87171;
+  filter: drop-shadow(0 0 4px rgba(248, 113, 113, 0.3));
+}
+
+/* Missing Status Styles */
+.payment-banner--missing {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.3);
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.04);
+}
+.payment-banner--missing:hover {
+  border-color: rgba(239, 68, 68, 0.45);
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.08);
+}
+.payment-banner--missing .payment-banner-title {
+  color: #f87171;
+}
+.payment-banner--missing .payment-banner-desc {
+  color: #fca5a5;
+}
+.payment-banner--missing .icon-missing {
+  color: #f87171;
+  filter: drop-shadow(0 0 4px rgba(248, 113, 113, 0.3));
 }

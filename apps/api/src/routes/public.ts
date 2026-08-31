@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import type { DemoScenarioManifest } from "@query402/shared";
-import { getSortedProviders } from "../lib/pricing.js";
+import { buildCapabilityMatrix, getSortedProviders } from "../lib/pricing.js";
 import { getAnalyticsSummary, getUsageEvents } from "../lib/persistence.js";
 import { config, getConfigSnapshot } from "../lib/config.js";
 import { apiVersion } from "../lib/build-metadata.js";
@@ -28,9 +27,13 @@ publicRouter.get("/health", (_req, res) => {
     nodeEnv: config.NODE_ENV,
     network: config.STELLAR_NETWORK,
     sponsorshipEnabled: config.sponsorshipEnabled,
+    demoMode: config.demoMode,
     timestamp: new Date().toISOString(),
+
+
     uptimeSeconds: process.uptime(),
     diagnostics: getConfigSnapshot()
+
   });
 });
 
@@ -40,6 +43,13 @@ publicRouter.get("/api/providers", (_req, res) => {
 
 publicRouter.get("/api/catalog", (_req, res) => {
   res.json(getCatalog());
+});
+
+publicRouter.get("/api/matrix", (_req, res) => {
+  res.json({
+    updatedAt: new Date().toISOString(),
+    providers: buildCapabilityMatrix()
+  });
 });
 
 publicRouter.get("/api/usage", async (req, res, next) => {
@@ -69,16 +79,11 @@ publicRouter.get("/api/usage", async (req, res, next) => {
 
 publicRouter.get("/api/analytics", async (req, res, next) => {
   try {
-    const parsed = analyticsQuerySchema.safeParse(req.query);
-    if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
-    }
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
+    const cursor = req.query.cursor ? (req.query.cursor as string) : null;
 
-    const analytics = await getAnalyticsSummary({
-      recentUsageLimit: parsed.data.recentUsageLimit,
-      recentPaymentLimit: parsed.data.recentPaymentLimit
-    });
-    res.json(analytics);
+    const result = await fetchPaginatedAnalytics(limit, cursor);
+    return res.json(result);
   } catch (error) {
     next(error);
   }

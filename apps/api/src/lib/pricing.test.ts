@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildCapabilityMatrix,
   getProviderById,
   getProvidersByCategory,
   getSortedProviders,
@@ -413,9 +414,66 @@ describe("x402 cross-layer price consistency", () => {
     const hasDrift = baseMicroUsd !== minCategoryMicroUsd;
     expect(hasDrift).toBe(true);
 
-    const deviatingProviders = searchProviders
-      .filter((p) => toMicroUsd(p.priceUsd) !== baseMicroUsd)
-      .map((p) => p.id);
-    expect(deviatingProviders).toContain("search.basic");
+      const searchProviders = driftedProviders.filter((p) => p.category === "search" && p.enabled);
+      const routeBase = protectedRouteBasePrices["GET /x402/search"];
+      expect(routeBase).toBeDefined();
+
+      const baseMicroUsd = toMicroUsd(parseRoutePrice(routeBase));
+      const minCategoryMicroUsd = toMicroUsd(Math.min(...searchProviders.map((p) => p.priceUsd)));
+
+      // With search.basic at 0.05, new minimum is search.pro at 0.02 (20000 µ$).
+      // Route base remains $0.01 (10000 µ$) — drift is detected.
+      const hasDrift = baseMicroUsd !== minCategoryMicroUsd;
+      expect(hasDrift).toBe(true);
+
+      const deviatingProviders = searchProviders
+        .filter((p) => toMicroUsd(p.priceUsd) !== baseMicroUsd)
+        .map((p) => p.id);
+      expect(deviatingProviders).toContain("search.basic");
+    }
+  );
+
+describe("capability matrix", () => {
+  it("returns all providers with correct shape", () => {
+    const matrix = buildCapabilityMatrix();
+    expect(matrix.length).toBe(providers.length);
+
+    for (const entry of matrix) {
+      expect(entry.caveat === null || typeof entry.caveat === "string").toBe(true);
+      expect(entry).toMatchObject({
+        id: expect.any(String),
+        name: expect.any(String),
+        category: expect.stringMatching(/^(search|news|scrape)$/),
+        priceUsd: expect.any(Number),
+        sourceType: expect.stringMatching(/^(live|deterministic-fallback|unavailable)$/),
+        latencyEstimateMs: expect.any(Number),
+        enabled: expect.any(Boolean),
+        hasFallback: true
+      });
+      expect(entry.priceUsd).toBeGreaterThan(0);
+      expect(entry.latencyEstimateMs).toBeGreaterThan(0);
+    }
+  });
+
+  it("sorts deterministically by category then id", () => {
+    const matrix = buildCapabilityMatrix();
+    for (let i = 1; i < matrix.length; i++) {
+      const prev = matrix[i - 1];
+      const curr = matrix[i];
+      const catCmp = prev.category.localeCompare(curr.category);
+      if (catCmp === 0) {
+        expect(prev.id.localeCompare(curr.id)).toBeLessThanOrEqual(0);
+      } else {
+        expect(catCmp).toBeLessThan(0);
+      }
+    }
+  });
+
+  it("reports caveat when GROQ_API_KEY is missing", () => {
+    const matrix = buildCapabilityMatrix();
+    const allHaveCaveat = matrix.every(
+      (entry) => entry.caveat !== null && entry.caveat.includes("GROQ_API_KEY")
+    );
+    expect(allHaveCaveat).toBe(true);
   });
 });
