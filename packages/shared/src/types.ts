@@ -56,6 +56,46 @@ export interface QueryResult {
   raw?: Record<string, unknown>;
 }
 
+export type PaymentEvidenceStatus = "demo-paid" | "verified" | "settled" | "failed";
+
+export interface BasePaymentEvidence {
+  status: PaymentEvidenceStatus;
+  network: string;
+  amountUsd: number;
+  payToAddress: string;
+  facilitatorUrl: string;
+  payerPublicKey?: string;
+  error?: string;
+}
+
+export interface DemoPaymentEvidence extends BasePaymentEvidence {
+  status: "demo-paid";
+  demoId: string;
+}
+
+export interface VerifiedPaymentEvidence extends BasePaymentEvidence {
+  status: "verified";
+  paymentPayload: string;
+}
+
+export interface SettledPaymentEvidence extends BasePaymentEvidence {
+  status: "settled";
+  transactionHash: string;
+  paymentPayload: string;
+}
+
+export interface FailedPaymentEvidence extends BasePaymentEvidence {
+  status: "failed";
+  error: string;
+  paymentPayload?: string;
+}
+
+export type PaymentEvidence =
+  | DemoPaymentEvidence
+  | VerifiedPaymentEvidence
+  | SettledPaymentEvidence
+  | FailedPaymentEvidence;
+
 export interface UsageEvent {
   id: string;
   mode: QueryMode;
@@ -73,6 +113,7 @@ export interface UsageEvent {
   facilitatorUrl?: string;
   payerPublicKey?: string;
   traceId: string;
+  paymentId: string;
   createdAt: string;
   latencyMs: number;
   execution?: ProviderExecutionMetadata;

@@ -74,7 +74,7 @@ export interface AnalyticsResponse {
     amountUsd: number;
     endpoint: string;
     providerId: string;
-    status: string;
+    evidence: PaymentEvidence;
     createdAt: string;
     transactionHash?: string;
     payerPublicKey?: string;
@@ -89,7 +89,7 @@ export interface AnalyticsResponse {
     priceUsd: number;
     createdAt: string;
     latencyMs: number;
-    paymentStatus: string;
+    evidence: PaymentEvidence;
     traceId: string;
     execution?: {
       providerId: string;
