@@ -4,20 +4,7 @@ export const queryModeSchema = z.enum(["search", "news", "scrape"]);
 
 export const providerCategorySchema = queryModeSchema;
 
-export const latencyBandSchema = z.enum(["fast", "standard", "slow"]);
-
-export const reliabilityBandSchema = z.enum(["demo", "fallback", "live"]);
-
-export const paymentModeSchema = z.enum(["demo", "x402", "sponsored"]);
-
-export const slaBadgesSchema = z.object({
-  latencyBand: latencyBandSchema,
-  latencyLabel: z.string().min(1),
-  reliabilityBand: reliabilityBandSchema,
-  reliabilityLabel: z.string().min(1),
-  paymentMode: paymentModeSchema,
-  paymentLabel: z.string().min(1)
-});
+export const provenanceSchema = z.enum(["mock", "fallback", "live", "unknown"]);
 
 export const providerSchema = z.object({
   id: z.string().min(1),
@@ -28,8 +15,8 @@ export const providerSchema = z.object({
   latencyEstimateMs: z.number().int().positive(),
   qualityScore: z.number().min(1).max(100),
   sourceType: z.enum(["live", "deterministic-fallback", "unavailable"]),
-  enabled: z.boolean(),
-  slaBadges: slaBadgesSchema
+  provenance: provenanceSchema,
+  enabled: z.boolean()
 });
 
 export const baseQuerySchema = z.object({

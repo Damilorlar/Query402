@@ -18,6 +18,13 @@ import {
   sponsorshipGrantSchema
 } from "./schemas.js";
 
+const validSlaBadge = {
+  latencyBand: "fast" as const,
+  reliabilityBand: "demo" as const,
+  paymentMode: "demo" as const,
+  badgeCopy: "Fast response · Demo provider · Demo payment"
+};
+
 const validProvider = {
   id: "search.basic",
   name: "Basic Search",
@@ -27,15 +34,8 @@ const validProvider = {
   latencyEstimateMs: 700,
   qualityScore: 75,
   sourceType: "deterministic-fallback" as const,
-  enabled: true,
-  slaBadges: {
-    latencyBand: "fast" as const,
-    latencyLabel: "Fast response",
-    reliabilityBand: "fallback" as const,
-    reliabilityLabel: "Fallback cached",
-    paymentMode: "x402" as const,
-    paymentLabel: "Pay-per-query (x402)"
-  }
+  provenance: "unknown" as const,
+  enabled: true
 };
 
 const validGrant = {
