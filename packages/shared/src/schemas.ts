@@ -4,6 +4,8 @@ export const queryModeSchema = z.enum(["search", "news", "scrape"]);
 
 export const providerCategorySchema = queryModeSchema;
 
+export const provenanceSchema = z.enum(["mock", "fallback", "live", "unknown"]);
+
 export const providerSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -13,6 +15,7 @@ export const providerSchema = z.object({
   latencyEstimateMs: z.number().int().positive(),
   qualityScore: z.number().min(1).max(100),
   sourceType: z.enum(["live", "deterministic-fallback", "unavailable"]),
+  provenance: provenanceSchema,
   enabled: z.boolean()
 });
 
