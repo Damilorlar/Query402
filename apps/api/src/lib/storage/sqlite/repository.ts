@@ -49,12 +49,12 @@ INSERT INTO payment_attempts (
   id, endpoint, provider_id, amount_usd, network, asset, amount, evidence_kind,
   payer_public_key, pay_to_address, facilitator_url, status, transaction_hash,
   facilitator_result, error, created_at, sponsorship_grant_id, policy_decision,
-  payment_source, sponsor_public_key
+  payment_source, sponsor_public_key, error_code
 ) VALUES (
   @id, @endpoint, @provider_id, @amount_usd, @network, @asset, @amount, @evidence_kind,
   @payer_public_key, @pay_to_address, @facilitator_url, @status, @transaction_hash,
   @facilitator_result, @error, @created_at, @sponsorship_grant_id, @policy_decision,
-  @payment_source, @sponsor_public_key
+  @payment_source, @sponsor_public_key, @error_code
 )
 `;
 

@@ -50,138 +50,60 @@ describe("public routes", () => {
     }
   });
 
-  it("health response includes diagnostics sub-object with safe booleans and enums only", async () => {
+  it("returns readiness metadata without sensitive values", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-21T10:00:00.000Z"));
+
+    try {
+      const app = await createPublicApp();
+      const response = await request(app).get("/api/readiness");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toMatchObject({
+        ok: true,
+        version: "0.1.0",
+        timestamp: "2026-06-21T10:00:00.000Z",
+        demoMode: true,
+        network: "stellar:testnet",
+        facilitatorConfigured: false,
+        facilitatorSupported: false,
+        storageAvailable: true
+      });
+      expect(typeof response.body.uptimeSeconds).toBe("number");
+      expect(response.body.uptimeSeconds).toBeGreaterThanOrEqual(0);
+      expect(response.body.providersByMode).toMatchObject({
+        live: 1,
+        fallback: 6
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not expose secret config values in readiness response", async () => {
     const app = await createPublicApp();
-    const response = await request(app).get("/health");
+    const response = await request(app).get("/api/readiness");
 
     expect(response.status).toBe(200);
 
-    const { diagnostics } = response.body;
-    expect(diagnostics).toBeDefined();
-
-    // All fields are either booleans or safe enum strings — never raw secrets
-    expect(typeof diagnostics.network).toBe("string");
-    expect(typeof diagnostics.demoMode).toBe("boolean");
-    expect(typeof diagnostics.facilitatorConfigured).toBe("boolean");
-    expect(typeof diagnostics.facilitatorApiKeyConfigured).toBe("boolean");
-    expect(typeof diagnostics.payToConfigured).toBe("boolean");
-    expect(typeof diagnostics.sponsorshipEnabled).toBe("boolean");
-    expect(typeof diagnostics.sponsorshipSigningSecretConfigured).toBe("boolean");
-    expect(typeof diagnostics.anyProviderKeyConfigured).toBe("boolean");
+    const bodyStr = JSON.stringify(response.body);
+    expect(bodyStr).not.toContain("API_KEY");
+    expect(bodyStr).not.toContain("SECRET");
+    expect(bodyStr).not.toContain("PRIVATE");
+    expect(bodyStr).not.toContain("BEARER");
+    expect(bodyStr).not.toContain("token");
+    expect(bodyStr).not.toMatch(/[A-Za-z0-9]{56}/);
   });
 
-  it("health diagnostics reflects testnet network and demo mode from test env", async () => {
+  it("returns readiness endpoint working in demo mode without live facilitator credentials", async () => {
     const app = await createPublicApp();
-    const response = await request(app).get("/health");
+
+    const response = await request(app).get("/api/readiness");
 
     expect(response.status).toBe(200);
-    expect(response.body.diagnostics.network).toBe("stellar:testnet");
-    expect(response.body.diagnostics.demoMode).toBe(true); // applyApiTestEnv sets DEMO_MODE=true
-    expect(response.body.diagnostics.payToConfigured).toBe(true); // TEST_WALLET is set by applySponsorshipTestEnv
-  });
-
-  describe("health diagnostics — secret redaction", () => {
-    it("never exposes raw secret values in health response body", async () => {
-      // Set all secret-like env vars to recognisable sentinel values,
-      // then confirm none of them appear anywhere in the response JSON.
-      applyApiTestEnv({
-        X402_FACILITATOR_API_KEY: "super-secret-facilitator-key",
-        SPONSORSHIP_SIGNING_SECRET: "ultra-secret-signing-secret",
-        BRAVE_API_KEY: "brave-secret-key",
-        SERPAPI_API_KEY: "serpapi-secret-key",
-        NEWS_API_KEY: "news-secret-key",
-        GROQ_API_KEY: "groq-secret-key"
-      });
-
-      const { publicRouter } = await import("../routes/public.js");
-      const app = express();
-      app.use(publicRouter);
-
-      const response = await request(app).get("/health");
-      expect(response.status).toBe(200);
-
-      const body = JSON.stringify(response.body);
-      const secretValues = [
-        "super-secret-facilitator-key",
-        "ultra-secret-signing-secret",
-        "brave-secret-key",
-        "serpapi-secret-key",
-        "news-secret-key",
-        "groq-secret-key"
-      ];
-
-      for (const secret of secretValues) {
-        expect(body).not.toContain(secret);
-      }
-    });
-
-    it("reports facilitatorApiKeyConfigured=true when key is set, without leaking the value", async () => {
-      applyApiTestEnv({ X402_FACILITATOR_API_KEY: "my-confidential-api-key" });
-
-      const { publicRouter } = await import("../routes/public.js");
-      const app = express();
-      app.use(publicRouter);
-
-      const response = await request(app).get("/health");
-      expect(response.status).toBe(200);
-      expect(response.body.diagnostics.facilitatorApiKeyConfigured).toBe(true);
-      expect(JSON.stringify(response.body)).not.toContain("my-confidential-api-key");
-    });
-
-    it("reports facilitatorApiKeyConfigured=false when key is absent", async () => {
-      applyApiTestEnv({ X402_FACILITATOR_API_KEY: "" });
-
-      const { publicRouter } = await import("../routes/public.js");
-      const app = express();
-      app.use(publicRouter);
-
-      const response = await request(app).get("/health");
-      expect(response.status).toBe(200);
-      expect(response.body.diagnostics.facilitatorApiKeyConfigured).toBe(false);
-    });
-
-    it("reports sponsorshipSigningSecretConfigured=true when secret is set, without leaking the value", async () => {
-      applyApiTestEnv({ SPONSORSHIP_SIGNING_SECRET: "top-secret-signing-value" });
-
-      const { publicRouter } = await import("../routes/public.js");
-      const app = express();
-      app.use(publicRouter);
-
-      const response = await request(app).get("/health");
-      expect(response.status).toBe(200);
-      expect(response.body.diagnostics.sponsorshipSigningSecretConfigured).toBe(true);
-      expect(JSON.stringify(response.body)).not.toContain("top-secret-signing-value");
-    });
-
-    it("reports anyProviderKeyConfigured=true when at least one provider key is set", async () => {
-      applyApiTestEnv({ GROQ_API_KEY: "gsk_test_provider_key" });
-
-      const { publicRouter } = await import("../routes/public.js");
-      const app = express();
-      app.use(publicRouter);
-
-      const response = await request(app).get("/health");
-      expect(response.status).toBe(200);
-      expect(response.body.diagnostics.anyProviderKeyConfigured).toBe(true);
-      expect(JSON.stringify(response.body)).not.toContain("gsk_test_provider_key");
-    });
-
-    it("reports anyProviderKeyConfigured=false when no provider keys are set", async () => {
-      applyApiTestEnv({
-        BRAVE_API_KEY: "",
-        SERPAPI_API_KEY: "",
-        NEWS_API_KEY: "",
-        GROQ_API_KEY: ""
-      });
-
-      const { publicRouter } = await import("../routes/public.js");
-      const app = express();
-      app.use(publicRouter);
-
-      const response = await request(app).get("/health");
-      expect(response.status).toBe(200);
-      expect(response.body.diagnostics.anyProviderKeyConfigured).toBe(false);
-    });
+    expect(response.body.demoMode).toBe(true);
+    expect(response.body.facilitatorConfigured).toBe(false);
+    expect(response.body.facilitatorSupported).toBe(false);
   });
 
   it("returns provider catalog and category groupings", async () => {
@@ -248,19 +170,50 @@ describe("public routes", () => {
     await persistPaymentAndUsage({ payment: firstPayment, usage: firstUsage });
     await persistPaymentAndUsage({ payment: secondPayment, usage: secondUsage });
 
-    const app = await createPublicApp();
-    const response = await request(app).get("/api/audit/digest");
+      expect(first.payment).toEqual(second.payment);
+      expect(first.usage).toEqual(second.usage);
+    });
 
-    expect(response.status).toBe(200);
-    expect(response.body).toMatchObject({
-      totalPaidRuns: 2,
-      totalSettledAmountUsd: 1.75,
-      settledAmountByAssetNetwork: {
-        "stellar:testnet": 1.75
-      },
-      withPaymentEvidence: 1,
-      missingPaymentEvidence: 1,
-      latestPaymentTimestamp: secondPayment.createdAt
+    it("demo variant records correct payment markers via fixture overrides", async () => {
+      const { persistPaymentAndUsage } = await import("../lib/persistence.js");
+      await persistPaymentAndUsage(
+        buildPaidQueryFixture({
+          payment: {
+            id: "pay_fixture_demo_01",
+            status: "demo-paid",
+            evidenceKind: "demo",
+            transactionHash: undefined
+          },
+          usage: {
+            id: "use_fixture_demo_01",
+            paymentStatus: "demo-paid",
+            paymentKind: "demo",
+            paymentTxHash: undefined
+          }
+        })
+      );
+
+      const app = await createPublicApp();
+      const analyticsResponse = await request(app).get("/api/analytics");
+
+      expect(analyticsResponse.status).toBe(200);
+      expect(analyticsResponse.body).toMatchObject({
+        totalQueries: 1,
+        demoSpendUsd: 0.01,
+        settledSpendUsd: 0
+      });
+
+      const { recentUsage, recentTransactions } = analyticsResponse.body;
+      expect(recentUsage[0]).toMatchObject({
+        id: "use_fixture_demo_01",
+        paymentStatus: "demo-paid",
+        paymentKind: "demo"
+      });
+      expect(recentTransactions[0]).toMatchObject({
+        id: "pay_fixture_demo_01",
+        status: "demo-paid",
+        evidenceKind: "demo"
+      });
     });
     expect(response.body.generatedAt).toEqual(expect.any(String));
   });

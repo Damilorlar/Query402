@@ -3,9 +3,12 @@ import type { ProviderDefinition, QueryMode, SponsorshipPreview } from "@query40
 import {
   Activity,
   AlertTriangle,
+  Check,
   CheckCircle2,
   CircleDollarSign,
   Clock4,
+  Copy,
+  Download,
   Gauge,
   Home,
   Radar,
@@ -27,6 +30,13 @@ import {
   runSponsoredPaidQuery
 } from "../lib/sponsorship.js";
 import { runWalletPaidQuery } from "../lib/x402.js";
+import {
+  buildReceipt,
+  copyReceiptToClipboard,
+  downloadReceipt,
+  type ReceiptPaymentMode,
+  receiptFilename
+} from "../lib/receipt.js";
 import { WalletSessionMachine, FreighterAdapter, type WalletState } from "../lib/wallet/index.js";
 import PaymentEvidenceBanner from "../components/PaymentEvidenceBanner.js";
 
@@ -192,6 +202,66 @@ export default function ControlDeckPage() {
 
   const showAnalyticsSkeleton = isAnalyticsLoading && analytics === null;
   const hasUsageHistory = (analytics?.totalQueries ?? 0) > 0;
+
+  type ReceiptFeedback = { kind: "copied" | "downloaded"; at: number } | null;
+  const [receiptFeedback, setReceiptFeedback] = useState<ReceiptFeedback>(null);
+
+  const receipt = useMemo(() => {
+    if (!result) {
+      return null;
+    }
+    return buildReceipt({ response: result, userPaymentMode: paymentMode });
+  }, [result, paymentMode]);
+
+  useEffect(() => {
+    if (!receiptFeedback) {
+      return;
+    }
+    const timer = window.setTimeout(() => setReceiptFeedback(null), 2400);
+    return () => window.clearTimeout(timer);
+  }, [receiptFeedback]);
+
+  function exportReceipt() {
+    if (!receipt) {
+      setError("Run a paid query before exporting a receipt");
+      return;
+    }
+    try {
+      downloadReceipt(receipt);
+      setReceiptFeedback({ kind: "downloaded", at: Date.now() });
+    } catch (exportError) {
+      setError(
+        exportError instanceof Error ? exportError.message : "Failed to export receipt"
+      );
+    }
+  }
+
+  async function copyReceipt() {
+    if (!receipt) {
+      setError("Run a paid query before copying a receipt");
+      return;
+    }
+    try {
+      const copyResult = await copyReceiptToClipboard(receipt);
+      if (!copyResult.ok) {
+        setError("Could not copy receipt to clipboard");
+        return;
+      }
+      setReceiptFeedback({ kind: "copied", at: Date.now() });
+    } catch (copyError) {
+      setError(copyError instanceof Error ? copyError.message : "Failed to copy receipt");
+    }
+  }
+
+  const receiptBadgeLabel: Record<ReceiptPaymentMode, string> = {
+    wallet: "Wallet",
+    sponsored: "Sponsored",
+    demo: "Demo"
+  };
+
+  const receiptHintForCurrent = result
+    ? `Share this receipt in the SCF issue thread to prove the ${receipt?.payment.mode ?? "wallet"} payment trail.`
+    : null;
 
   useEffect(() => {
     async function bootstrap() {
@@ -508,6 +578,9 @@ export default function ControlDeckPage() {
                     <span className={`source-badge ${provider.sourceType}`}>
                       {provider.sourceType}
                     </span>
+                    <span className={`provenance-badge ${provider.provenance}`}>
+                      {provider.provenance}
+                    </span>
                   </div>
                 </button>
               ))
@@ -597,55 +670,76 @@ export default function ControlDeckPage() {
                 </div>
 
                 <div className="trace-box">
-                  <p className="trace-row">
-                    <span className="trace-label">Trace ID</span>
-                    <code className="trace-value">{result.traceId}</code>
+                  <p>
+                    payment-evidence: {result.payment.evidence.kind} ({result.payment.evidence.status})
+                  </p>
+                  <p>network: {result.payment.evidence.network}</p>
+                  <p>asset: {result.payment.evidence.asset ?? "<unspecified>"}</p>
+                </div>
+
+                <div className="receipt-card">
+                  <div className="receipt-card-head">
+                    <p className="receipt-eyebrow">Public receipt</p>
+                    <div className="receipt-badges">
+                      {receipt ? (
+                        <span className={`receipt-mode-badge receipt-mode-${receipt.payment.mode}`}>
+                          {receiptBadgeLabel[receipt.payment.mode]}
+                        </span>
+                      ) : null}
+                      {receipt?.payment.transactionHash ? (
+                        <span
+                          className="receipt-tx-pill"
+                          title={receipt.payment.transactionHash}
+                        >
+                          tx {receipt.payment.transactionHash.slice(0, 8)}…
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <p className="receipt-summary">
+                    Trace <strong>{result.result.traceId}</strong> · quoted{" "}
+                    <strong>{money(result.result.priceUsd)}</strong> · payment proof for{" "}
+                    <strong>{result.result.providerName}</strong>
+                  </p>
+
+                  <p className="receipt-hint">{receiptHintForCurrent ?? ""}</p>
+
+                  <div className="receipt-actions">
                     <button
                       type="button"
-                      className="trace-copy-btn"
-                      onClick={() => navigator.clipboard.writeText(result.traceId)}
-                      title="Copy trace ID"
+                      className="ghost-btn receipt-btn"
+                      onClick={exportReceipt}
+                      disabled={!receipt}
+                      title={
+                        receipt
+                          ? `Download ${receiptFilename(receipt)}`
+                          : "Run a paid query first"
+                      }
                     >
-                      Copy
+                      <Download size={14} /> Export JSON receipt
                     </button>
-                  </p>
-                  <p>
-                    evidence:{" "}
-                    {result.payment.evidence?.status ?? result.payment.evidence?.kind ?? "none"}
-                  </p>
-                  <p>network: {result.payment.network}</p>
-                  {result.payment.evidence?.proofLinks && (
-                    <div className="proof-links">
-                      <p>
-                        tx:{" "}
-                        {result.payment.evidence.proofLinks.transaction !== "not_available" ? (
-                          <a
-                            href={result.payment.evidence.proofLinks.transaction}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            {result.payment.evidence.transactionHash?.slice(0, 12)}...
-                          </a>
-                        ) : (
-                          "not_available"
-                        )}
-                      </p>
-                      <p>
-                        payer:{" "}
-                        {result.payment.evidence.proofLinks.payer !== "not_available" ? (
-                          <a
-                            href={result.payment.evidence.proofLinks.payer}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            {result.payment.evidence.payer?.slice(0, 8)}...
-                          </a>
-                        ) : (
-                          "not_available"
-                        )}
-                      </p>
-                    </div>
-                  )}
+                    <button
+                      type="button"
+                      className="ghost-btn receipt-btn"
+                      onClick={copyReceipt}
+                      disabled={!receipt}
+                      title="Copy a paste-ready JSON receipt to your clipboard"
+                    >
+                      {receiptFeedback?.kind === "copied" ? (
+                        <>
+                          <Check size={14} /> Copied
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={14} /> Copy JSON
+                        </>
+                      )}
+                    </button>
+                    {receiptFeedback?.kind === "downloaded" ? (
+                      <span className="receipt-toast">Receipt downloaded ✓</span>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div className="item-stack">
