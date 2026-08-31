@@ -4,6 +4,7 @@ import { paidRouteErrorCodeSchema } from "./schemas.js";
 export type QueryMode = "search" | "news" | "scrape";
 export type ProviderCategory = QueryMode;
 export type SourceType = "live" | "deterministic-fallback" | "unavailable";
+export type Provenance = "mock" | "fallback" | "live" | "unknown";
 export type ExecutionFallbackReason =
   | "timeout"
   | "circuit-open"
@@ -36,6 +37,7 @@ export interface ProviderDefinition {
   latencyEstimateMs: number;
   qualityScore: number;
   sourceType: SourceType;
+  provenance: Provenance;
   enabled: boolean;
 }
 
