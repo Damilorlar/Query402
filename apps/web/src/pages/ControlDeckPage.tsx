@@ -17,8 +17,8 @@ import {
   Sparkles,
   TerminalSquare,
   Check,
-  AlertTriangle,
   Clock,
+  Copy,
   XCircle
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -60,6 +60,64 @@ function toTokenBaseUnits(amountUsd: number) {
   return normalizedAmount.replace(".", "").replace(/^0+/, "") || "0";
 }
 
+function PayToAddressDisplay({
+  address,
+  network,
+  configured
+}: {
+  address?: string;
+  network?: string;
+  configured?: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    if (!address) return;
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy address", err);
+    }
+  };
+
+  const isTestnet =
+    network?.toLowerCase().includes("testnet") ||
+    network?.toLowerCase().includes("test sdf network") ||
+    network?.toLowerCase().includes("september 2015");
+
+  if (!configured || !address) {
+    return (
+      <span className="pay-to-warning-badge" title="No payout address configured!">
+        <AlertTriangle size={13} style={{ display: "inline-block", marginRight: "4px", verticalAlign: "-2px" }} />
+        Missing pay-to address
+      </span>
+    );
+  }
+
+  return (
+    <span className="pay-to-info-wrapper">
+      <strong className="pay-to-address-text" title={address}>
+        {address.slice(0, 6)}...{address.slice(-6)}
+      </strong>
+      {isTestnet && <span className="pay-to-network-badge">Testnet</span>}
+      <button
+        onClick={handleCopy}
+        className="pay-to-copy-button"
+        title="Copy full public address"
+        type="button"
+      >
+        {copied ? (
+          <Check size={11} className="copy-icon success" style={{ color: "#37e0af" }} />
+        ) : (
+          <Copy size={11} className="copy-icon" />
+        )}
+      </button>
+    </span>
+  );
+}
+
 export default function ControlDeckPage() {
   const [mode, setMode] = useState<QueryMode>("search");
   const [paymentMode, setPaymentMode] = useState<"wallet" | "sponsored">("wallet");
@@ -84,6 +142,7 @@ export default function ControlDeckPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sponsorshipEnabled, setSponsorshipEnabled] = useState(false);
+  const [healthDiagnostics, setHealthDiagnostics] = useState<{ network?: string; payToConfigured?: boolean; payToAddress?: string } | null>(null);
   const [preview, setPreview] = useState<SponsorshipPreview | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
@@ -162,9 +221,7 @@ export default function ControlDeckPage() {
         id: "receipt",
         label: "Receipt/export available",
         status: hasReceipts ? "pass" : "pending",
-        detail: hasReceipts
-          ? `${analytics!.recentTransactions.length} transaction(s)`
-          : undefined
+        detail: hasReceipts ? `${analytics!.recentTransactions.length} transaction(s)` : undefined
       }
     ];
   }, [providers, result, analytics, demoMode]);
@@ -278,6 +335,11 @@ export default function ControlDeckPage() {
       setSelectedProvider(modeDefaultProvider.search);
       setSponsorshipEnabled(sponsorshipActive);
       setDemoMode(health.demoMode ?? false);
+      setHealthDiagnostics({
+        network: health.network ?? health.diagnostics?.network,
+        payToConfigured: health.diagnostics?.payToConfigured ?? false,
+        payToAddress: health.diagnostics?.payToAddress
+      });
       await refreshMetrics();
     }
 
@@ -586,6 +648,70 @@ export default function ControlDeckPage() {
                       {provider.provenance}
                     </span>
                   </div>
+                  <div className="provider-sla-badges">
+                    <span
+                      className={`sla-badge sla-latency sla-latency--${provider.slaBadge.latencyBand}`}
+                      title={provider.slaBadge.badgeCopy}
+                    >
+                      <Clock4 size={10} />{" "}
+                      {provider.slaBadge.latencyBand === "fast"
+                        ? "Fast"
+                        : provider.slaBadge.latencyBand === "standard"
+                          ? "Standard"
+                          : provider.slaBadge.latencyBand === "slow"
+                            ? "Slow"
+                            : "Not verified"}
+                    </span>
+                    <span
+                      className={`sla-badge sla-reliability sla-reliability--${provider.slaBadge.reliabilityBand}`}
+                      title={provider.slaBadge.badgeCopy}
+                    >
+                      <ShieldCheck size={10} />{" "}
+                      {provider.slaBadge.reliabilityBand === "live"
+                        ? "Live API"
+                        : provider.slaBadge.reliabilityBand === "demo"
+                          ? "Demo"
+                          : provider.slaBadge.reliabilityBand === "fallback"
+                            ? "Fallback"
+                            : "Not verified"}
+                    </span>
+                    <span
+                      className={`sla-badge sla-payment sla-payment--${provider.slaBadge.paymentMode}`}
+                      title={provider.slaBadge.badgeCopy}
+                    >
+                      <CircleDollarSign size={10} />{" "}
+                      {provider.slaBadge.paymentMode === "x402"
+                        ? "x402"
+                        : provider.slaBadge.paymentMode === "demo"
+                          ? "Demo"
+                          : provider.slaBadge.paymentMode === "sponsored"
+                            ? "Sponsored"
+                            : "Not verified"}
+                    </span>
+                  </div>
+                  {provider.slaBadges ? (
+                    <div className="provider-badges">
+                      <span
+                        className={`badge badge-latency badge-latency-${provider.slaBadges.latencyBand}`}
+                      >
+                        {provider.slaBadges.latencyLabel}
+                      </span>
+                      <span
+                        className={`badge badge-reliability badge-reliability-${provider.slaBadges.reliabilityBand}`}
+                      >
+                        {provider.slaBadges.reliabilityLabel}
+                      </span>
+                      <span
+                        className={`badge badge-payment badge-payment-${provider.slaBadges.paymentMode}`}
+                      >
+                        {provider.slaBadges.paymentLabel}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="provider-badges">
+                      <span className="badge badge-unknown">Not verified</span>
+                    </div>
+                  )}
                 </button>
               ))
             )}
@@ -612,7 +738,12 @@ export default function ControlDeckPage() {
                 units)
               </p>
               <p className="action-label">
-                Pay-to: <strong>dynamic via x402</strong>
+                Pay-to:{" "}
+                <PayToAddressDisplay
+                  address={healthDiagnostics?.payToAddress}
+                  network={healthDiagnostics?.network}
+                  configured={healthDiagnostics?.payToConfigured}
+                />
               </p>
             </div>
             <button
@@ -889,14 +1020,20 @@ export default function ControlDeckPage() {
             {showAnalyticsSkeleton ? (
               <AnalyticsSkeletonRows count={3} />
             ) : !hasUsageHistory ? (
-              <p className="panel-empty-note">
-                No spend recorded yet.
-              </p>
+              <p className="panel-empty-note">No spend recorded yet.</p>
             ) : (
               <ul>
                 {Object.entries(analytics!.spendByPaymentSource).map(([source, amount]) => (
                   <li key={source}>
-                    <span>{source === "demo" ? "Demo" : source === "sponsored" ? "Sponsored" : source === "wallet" ? "Wallet" : source}</span>
+                    <span>
+                      {source === "demo"
+                        ? "Demo"
+                        : source === "sponsored"
+                          ? "Sponsored"
+                          : source === "wallet"
+                            ? "Wallet"
+                            : source}
+                    </span>
                     <strong>{money(amount)}</strong>
                   </li>
                 ))}
@@ -1233,9 +1370,7 @@ function EvidenceRow(props: { item: EvidenceCheckItem }) {
   const { item } = props;
   return (
     <li className="evidence-item">
-      <span className={`evidence-icon ${item.status}`}>
-        {evidenceIconMap[item.status]}
-      </span>
+      <span className={`evidence-icon ${item.status}`}>{evidenceIconMap[item.status]}</span>
       <span className="evidence-label">{item.label}</span>
       {item.detail ? <span className="evidence-detail">{item.detail}</span> : null}
     </li>

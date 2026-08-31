@@ -18,6 +18,19 @@ export type PaidRouteErrorCode = z.infer<typeof paidRouteErrorCodeSchema>;
 
 export type LatencyBucket = "<1s" | "1-3s" | "3-10s" | ">10s" | "unknown";
 
+export type LatencyBand = "fast" | "standard" | "slow";
+export type ReliabilityBand = "demo" | "fallback" | "live";
+export type PaymentMode = "demo" | "x402" | "sponsored";
+
+export interface SlaBadges {
+  latencyBand: LatencyBand;
+  latencyLabel: string;
+  reliabilityBand: ReliabilityBand;
+  reliabilityLabel: string;
+  paymentMode: PaymentMode;
+  paymentLabel: string;
+}
+
 export interface ProviderExecutionMetadata {
   providerId: string;
   source: SourceType;
@@ -26,6 +39,17 @@ export interface ProviderExecutionMetadata {
   latencyEstimateMs: number;
   observedDurationMs: number;
   circuitBreakerState?: CircuitBreakerState;
+}
+
+export type LatencyBand = "fast" | "standard" | "slow" | "not-verified";
+export type ReliabilityBand = "live" | "fallback" | "demo" | "not-verified";
+export type PaymentModeBand = "x402" | "demo" | "sponsored" | "not-verified";
+
+export interface ProviderSlaBadge {
+  latencyBand: LatencyBand;
+  reliabilityBand: ReliabilityBand;
+  paymentMode: PaymentModeBand;
+  badgeCopy: string;
 }
 
 export interface ProviderDefinition {
@@ -39,6 +63,7 @@ export interface ProviderDefinition {
   sourceType: SourceType;
   provenance: Provenance;
   enabled: boolean;
+  slaBadge: ProviderSlaBadge;
 }
 
 export interface ProviderResultItem {

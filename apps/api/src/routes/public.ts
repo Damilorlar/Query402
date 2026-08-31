@@ -79,6 +79,15 @@ publicRouter.get("/api/usage", async (req, res, next) => {
   }
 });
 
+publicRouter.get("/api/export", async (_req, res, next) => {
+  try {
+    const exportData = await getAnalyticsExport();
+    res.json(exportData);
+  } catch (error) {
+    next(error);
+  }
+});
+
 publicRouter.get("/api/analytics", async (req, res, next) => {
   try {
     const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;

@@ -44,7 +44,7 @@ function buildPaymentAttempt(
     amountUsd: input.priceUsd,
     network: config.STELLAR_NETWORK,
     payerPublicKey: input.payerPublicKey,
-    payToAddress: config.X402_PAY_TO_ADDRESS,
+    payToAddress: requirePayToAddress(),
     facilitatorUrl: config.X402_FACILITATOR_URL,
     status: "settled",
     transactionHash: input.paymentResponseHeader ?? undefined,
@@ -123,6 +123,10 @@ export async function getAnalyticsSummary(
   options?: AnalyticsQueryOptions
 ): Promise<AnalyticsSummary> {
   return getStorageRepository().getAnalyticsSummary(options);
+}
+
+export async function getSettlementDigest(): Promise<SettlementDigest> {
+  return getStorageRepository().getSettlementDigest();
 }
 
 export async function persistPaidRequest(input: PersistPaidRequestInput): Promise<void> {
