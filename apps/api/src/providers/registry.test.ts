@@ -3,7 +3,7 @@ import { DefaultProviderRegistry } from "./registry.js";
 import { ProviderAdapter } from "./core.js";
 
 // Ensure pricing data exists for our fake tests so getProviderById works
-import { providers } from "../lib/pricing.js";
+import { providers, computeSlaBadge } from "../lib/pricing.js";
 providers.push({
   id: "test.search.live",
   name: "Test Live Search",

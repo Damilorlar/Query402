@@ -28,6 +28,17 @@ export interface ProviderExecutionMetadata {
   circuitBreakerState?: CircuitBreakerState;
 }
 
+export type LatencyBand = "fast" | "standard" | "slow" | "not-verified";
+export type ReliabilityBand = "live" | "fallback" | "demo" | "not-verified";
+export type PaymentModeBand = "x402" | "demo" | "sponsored" | "not-verified";
+
+export interface ProviderSlaBadge {
+  latencyBand: LatencyBand;
+  reliabilityBand: ReliabilityBand;
+  paymentMode: PaymentModeBand;
+  badgeCopy: string;
+}
+
 export interface ProviderDefinition {
   id: string;
   name: string;
@@ -39,6 +50,7 @@ export interface ProviderDefinition {
   sourceType: SourceType;
   provenance: Provenance;
   enabled: boolean;
+  slaBadge: ProviderSlaBadge;
 }
 
 export interface ProviderResultItem {

@@ -17,7 +17,6 @@ import {
   Sparkles,
   TerminalSquare,
   Check,
-  AlertTriangle,
   Clock,
   XCircle
 } from "lucide-react";
@@ -162,9 +161,7 @@ export default function ControlDeckPage() {
         id: "receipt",
         label: "Receipt/export available",
         status: hasReceipts ? "pass" : "pending",
-        detail: hasReceipts
-          ? `${analytics!.recentTransactions.length} transaction(s)`
-          : undefined
+        detail: hasReceipts ? `${analytics!.recentTransactions.length} transaction(s)` : undefined
       }
     ];
   }, [providers, result, analytics, demoMode]);
@@ -586,6 +583,47 @@ export default function ControlDeckPage() {
                       {provider.provenance}
                     </span>
                   </div>
+                  <div className="provider-sla-badges">
+                    <span
+                      className={`sla-badge sla-latency sla-latency--${provider.slaBadge.latencyBand}`}
+                      title={provider.slaBadge.badgeCopy}
+                    >
+                      <Clock4 size={10} />{" "}
+                      {provider.slaBadge.latencyBand === "fast"
+                        ? "Fast"
+                        : provider.slaBadge.latencyBand === "standard"
+                          ? "Standard"
+                          : provider.slaBadge.latencyBand === "slow"
+                            ? "Slow"
+                            : "Not verified"}
+                    </span>
+                    <span
+                      className={`sla-badge sla-reliability sla-reliability--${provider.slaBadge.reliabilityBand}`}
+                      title={provider.slaBadge.badgeCopy}
+                    >
+                      <ShieldCheck size={10} />{" "}
+                      {provider.slaBadge.reliabilityBand === "live"
+                        ? "Live API"
+                        : provider.slaBadge.reliabilityBand === "demo"
+                          ? "Demo"
+                          : provider.slaBadge.reliabilityBand === "fallback"
+                            ? "Fallback"
+                            : "Not verified"}
+                    </span>
+                    <span
+                      className={`sla-badge sla-payment sla-payment--${provider.slaBadge.paymentMode}`}
+                      title={provider.slaBadge.badgeCopy}
+                    >
+                      <CircleDollarSign size={10} />{" "}
+                      {provider.slaBadge.paymentMode === "x402"
+                        ? "x402"
+                        : provider.slaBadge.paymentMode === "demo"
+                          ? "Demo"
+                          : provider.slaBadge.paymentMode === "sponsored"
+                            ? "Sponsored"
+                            : "Not verified"}
+                    </span>
+                  </div>
                 </button>
               ))
             )}
@@ -889,14 +927,20 @@ export default function ControlDeckPage() {
             {showAnalyticsSkeleton ? (
               <AnalyticsSkeletonRows count={3} />
             ) : !hasUsageHistory ? (
-              <p className="panel-empty-note">
-                No spend recorded yet.
-              </p>
+              <p className="panel-empty-note">No spend recorded yet.</p>
             ) : (
               <ul>
                 {Object.entries(analytics!.spendByPaymentSource).map(([source, amount]) => (
                   <li key={source}>
-                    <span>{source === "demo" ? "Demo" : source === "sponsored" ? "Sponsored" : source === "wallet" ? "Wallet" : source}</span>
+                    <span>
+                      {source === "demo"
+                        ? "Demo"
+                        : source === "sponsored"
+                          ? "Sponsored"
+                          : source === "wallet"
+                            ? "Wallet"
+                            : source}
+                    </span>
                     <strong>{money(amount)}</strong>
                   </li>
                 ))}
@@ -1233,9 +1277,7 @@ function EvidenceRow(props: { item: EvidenceCheckItem }) {
   const { item } = props;
   return (
     <li className="evidence-item">
-      <span className={`evidence-icon ${item.status}`}>
-        {evidenceIconMap[item.status]}
-      </span>
+      <span className={`evidence-icon ${item.status}`}>{evidenceIconMap[item.status]}</span>
       <span className="evidence-label">{item.label}</span>
       {item.detail ? <span className="evidence-detail">{item.detail}</span> : null}
     </li>
