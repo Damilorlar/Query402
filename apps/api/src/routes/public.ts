@@ -2,10 +2,12 @@ import { Router } from "express";
 import { z } from "zod";
 import { buildCapabilityMatrix, getSortedProviders } from "../lib/pricing.js";
 import { getAnalyticsSummary, getUsageEvents } from "../lib/persistence.js";
-import { config, getConfigSnapshot } from "../lib/config.js";
-import { apiVersion } from "../lib/build-metadata.js";
+import { config, getFacilitatorConfigured } from "../lib/config.js";
+import { apiVersion, buildMetadata } from "../lib/build-metadata.js";
 import { getCatalog } from "../services/query-service.js";
 import { MAX_USAGE_EVENTS } from "../lib/storage/constants.js";
+import { isStorageAvailable } from "../lib/storage/index.js";
+import { checkFacilitatorSupported } from "../lib/facilitator-check.js";
 
 export const publicRouter = Router();
 
