@@ -18,6 +18,7 @@ import {
   TerminalSquare,
   Check,
   Clock,
+  Copy,
   XCircle
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -59,6 +60,64 @@ function toTokenBaseUnits(amountUsd: number) {
   return normalizedAmount.replace(".", "").replace(/^0+/, "") || "0";
 }
 
+function PayToAddressDisplay({
+  address,
+  network,
+  configured
+}: {
+  address?: string;
+  network?: string;
+  configured?: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    if (!address) return;
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy address", err);
+    }
+  };
+
+  const isTestnet =
+    network?.toLowerCase().includes("testnet") ||
+    network?.toLowerCase().includes("test sdf network") ||
+    network?.toLowerCase().includes("september 2015");
+
+  if (!configured || !address) {
+    return (
+      <span className="pay-to-warning-badge" title="No payout address configured!">
+        <AlertTriangle size={13} style={{ display: "inline-block", marginRight: "4px", verticalAlign: "-2px" }} />
+        Missing pay-to address
+      </span>
+    );
+  }
+
+  return (
+    <span className="pay-to-info-wrapper">
+      <strong className="pay-to-address-text" title={address}>
+        {address.slice(0, 6)}...{address.slice(-6)}
+      </strong>
+      {isTestnet && <span className="pay-to-network-badge">Testnet</span>}
+      <button
+        onClick={handleCopy}
+        className="pay-to-copy-button"
+        title="Copy full public address"
+        type="button"
+      >
+        {copied ? (
+          <Check size={11} className="copy-icon success" style={{ color: "#37e0af" }} />
+        ) : (
+          <Copy size={11} className="copy-icon" />
+        )}
+      </button>
+    </span>
+  );
+}
+
 export default function ControlDeckPage() {
   const [mode, setMode] = useState<QueryMode>("search");
   const [paymentMode, setPaymentMode] = useState<"wallet" | "sponsored">("wallet");
@@ -83,6 +142,7 @@ export default function ControlDeckPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sponsorshipEnabled, setSponsorshipEnabled] = useState(false);
+  const [healthDiagnostics, setHealthDiagnostics] = useState<{ network?: string; payToConfigured?: boolean; payToAddress?: string } | null>(null);
   const [preview, setPreview] = useState<SponsorshipPreview | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
@@ -275,6 +335,11 @@ export default function ControlDeckPage() {
       setSelectedProvider(modeDefaultProvider.search);
       setSponsorshipEnabled(sponsorshipActive);
       setDemoMode(health.demoMode ?? false);
+      setHealthDiagnostics({
+        network: health.network ?? health.diagnostics?.network,
+        payToConfigured: health.diagnostics?.payToConfigured ?? false,
+        payToAddress: health.diagnostics?.payToAddress
+      });
       await refreshMetrics();
     }
 
@@ -673,7 +738,12 @@ export default function ControlDeckPage() {
                 units)
               </p>
               <p className="action-label">
-                Pay-to: <strong>dynamic via x402</strong>
+                Pay-to:{" "}
+                <PayToAddressDisplay
+                  address={healthDiagnostics?.payToAddress}
+                  network={healthDiagnostics?.network}
+                  configured={healthDiagnostics?.payToConfigured}
+                />
               </p>
             </div>
             <button

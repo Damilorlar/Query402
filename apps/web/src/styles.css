@@ -2683,6 +2683,75 @@ body {
   }
 }
 
+/* Pay-to address display & copy styles */
+.pay-to-warning-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(255, 178, 54, 0.12);
+  border: 1px solid rgba(255, 178, 54, 0.35);
+  color: #ffca65;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.pay-to-info-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  vertical-align: middle;
+}
+
+.pay-to-address-text {
+  font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+  color: #edf3ff;
+  font-weight: 600;
+}
+
+.pay-to-network-badge {
+  display: inline-block;
+  background: rgba(90, 220, 255, 0.15);
+  border: 1px solid rgba(90, 220, 255, 0.35);
+  color: #8fe6ff;
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pay-to-copy-button {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(130, 160, 196, 0.24);
+  border-radius: 4px;
+  color: #8ea1bb;
+  cursor: pointer;
+  padding: 0.2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 150ms ease;
+  line-height: 1;
+}
+
+.pay-to-copy-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(130, 160, 196, 0.45);
+  color: #eaf3ff;
+}
+
+.pay-to-copy-button:active {
+  transform: scale(0.95);
+}
+
+.copy-icon {
+  display: inline-block;
+  vertical-align: middle;
+}
+
 /* Payment Evidence Banners */
 .payment-banner {
   display: flex;

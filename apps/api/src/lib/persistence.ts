@@ -44,7 +44,7 @@ function buildPaymentAttempt(
     amountUsd: input.priceUsd,
     network: config.STELLAR_NETWORK,
     payerPublicKey: input.payerPublicKey,
-    payToAddress: config.X402_PAY_TO_ADDRESS,
+    payToAddress: requirePayToAddress(),
     facilitatorUrl: config.X402_FACILITATOR_URL,
     status: "settled",
     transactionHash: input.paymentResponseHeader ?? undefined,
