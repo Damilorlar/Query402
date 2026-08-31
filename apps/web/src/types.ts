@@ -1,4 +1,4 @@
-import type { ProviderDefinition, QueryMode, QueryResult } from "@query402/shared";
+import type { LatencyBucket, ProviderDefinition, QueryMode, QueryResult } from "@query402/shared";
 
 export interface PaymentProofLinks {
   transaction: string;

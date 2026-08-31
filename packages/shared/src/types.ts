@@ -11,6 +11,8 @@ export type ExecutionFallbackReason =
 export type CircuitBreakerState = "closed" | "half-open" | "open";
 export type PaymentSource = "sponsored" | "wallet" | "demo";
 
+export type LatencyBucket = "<1s" | "1-3s" | "3-10s" | ">10s" | "unknown";
+
 export interface ProviderExecutionMetadata {
   providerId: string;
   source: SourceType;
