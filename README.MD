@@ -171,6 +171,29 @@ CI uses the Node version from `.nvmrc`, installs dependencies with `npm ci`, and
 npm run dev:api
 ```
 
+## Public API curl quickstart
+
+The API listens on `http://localhost:3001` by default (`PORT_API=3001`). For a local demo without payment credentials, copy the example environment file first; it enables deterministic demo mode (`DEMO_MODE=true`):
+
+```bash
+[ -f .env ] || cp .env.example .env
+npm run dev:api
+```
+
+Each request below is read-only and can be run from another terminal:
+
+```bash
+API_BASE=http://localhost:3001
+
+curl "$API_BASE/health"
+curl "$API_BASE/api/providers"
+curl "$API_BASE/api/catalog"
+curl "$API_BASE/api/usage"
+curl "$API_BASE/api/analytics"
+```
+
+For paid-route curl examples, including the demo-mode 402 challenge and retry, see [Demo-mode payment evidence](./docs/demo-payment-evidence.md).
+
 ## Run frontend dashboard
 
 ```bash
