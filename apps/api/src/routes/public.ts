@@ -79,16 +79,11 @@ publicRouter.get("/api/usage", async (req, res, next) => {
 
 publicRouter.get("/api/analytics", async (req, res, next) => {
   try {
-    const parsed = analyticsQuerySchema.safeParse(req.query);
-    if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
-    }
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
+    const cursor = req.query.cursor ? (req.query.cursor as string) : null;
 
-    const analytics = await getAnalyticsSummary({
-      recentUsageLimit: parsed.data.recentUsageLimit,
-      recentPaymentLimit: parsed.data.recentPaymentLimit
-    });
-    res.json(analytics);
+    const result = await fetchPaginatedAnalytics(limit, cursor);
+    return res.json(result);
   } catch (error) {
     next(error);
   }

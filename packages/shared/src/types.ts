@@ -200,16 +200,27 @@ export interface SponsorshipGrant {
   issuedAt: string;
 }
 
-export interface SignedGrant {
-  grant: SponsorshipGrant;
-  signature: string;
+export interface PaginatedAnalyticsResponse {
+  success: boolean;
+  hasMore: boolean;
+  nextCursor: string | null;
+  data: PrivacySafeAnalyticsRecord[];
 }
 
-export interface SponsorshipChallenge {
-  challengeId: string;
-  wallet: string;
-  message: string;
-  expiresAt: string;
+export interface PrivacySafeAnalyticsRecord {
+  id: string;
+  timestamp: string;
+  payerAddress: string;
+  volumeType: 'demo' | 'settled';
+  amount: number;
+  asset: string;
+}
+
+export interface PaginatedAnalyticsResponse {
+  success: boolean;
+  hasMore: boolean;
+  nextCursor: string | null;
+  data: PrivacySafeAnalyticsRecord[];
 }
 
 export interface SponsorshipPreviewBudget {
