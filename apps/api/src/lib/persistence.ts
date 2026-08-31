@@ -97,6 +97,7 @@ function buildUsageEvent(
     facilitatorUrl: config.X402_FACILITATOR_URL,
     payerPublicKey: input.payerPublicKey,
     traceId: input.traceId,
+    paymentId,
     createdAt: now,
     latencyMs: input.latencyMs,
     execution: input.execution,
