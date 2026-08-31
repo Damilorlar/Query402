@@ -1,20 +1,13 @@
-import { nanoid } from "nanoid";
+import fs from "node:fs";
+import path from "node:path";
 import type {
   AnalyticsSummary,
   PaymentAttempt,
-  ProviderExecutionMetadata,
-  PaymentSource,
-  QueryMode,
-  UsageEvent
+  UsageEvent,
+  PrivacySafeAnalyticsResponse,
+  DetailedAnalyticsResponse
 } from "@query402/shared";
-import { config, requirePayToAddress } from "./config.js";
-import { getStorageRepository } from "./storage/index.js";
-import { getProviderById } from "./pricing.js";
-import type {
-  AnalyticsQueryOptions,
-  PaginationOptions,
-  PaymentUsagePair
-} from "./storage/types.js";
+import { getPublicAnalytics, getDetailedAnalytics, getAnalyticsConfig } from "./analytics-service.js";
 
 export interface PersistPaidRequestInput {
   mode: QueryMode;
@@ -161,4 +154,27 @@ export async function persistSponsoredPayment(input: PersistSponsoredPaymentInpu
   );
 
   await persistPaymentAndUsage({ payment, usage });
+}
+
+/**
+ * Get public analytics - privacy-safe, paginated, no sensitive data
+ */
+export function getPublicAnalyticsData(
+  cursor?: string,
+  limit?: number
+): PrivacySafeAnalyticsResponse {
+  const db = readDb();
+  return getPublicAnalytics(db.usage, db.payments, { cursor, limit });
+}
+
+/**
+ * Get detailed analytics - for authorized endpoints only
+ * Still redacts sensitive fields but includes more data
+ */
+export function getDetailedAnalyticsData(
+  cursor?: string,
+  limit?: number
+): DetailedAnalyticsResponse {
+  const db = readDb();
+  return getDetailedAnalytics(db.usage, db.payments, { cursor, limit });
 }

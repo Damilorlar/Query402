@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { searchQuerySchema, newsQuerySchema, scrapeQuerySchema } from "@query402/shared";
 import { executeQuery } from "../services/query-service.js";
-import { handlePaidX402Route } from "../lib/idempotency/x402.js";
+import { config } from "../lib/config.js";
+import { savePaymentAttempt, saveUsageEvent, getDetailedAnalyticsData } from "../lib/persistence.js";
 
 export const protectedRouter = Router();
 
@@ -66,4 +67,32 @@ protectedRouter.get("/x402/scrape", async (req, res, next) => {
         url: parsed.data.url
       })
   });
+});
+
+/**
+ * Detailed analytics endpoint - for authorized access only
+ * Includes transaction hashes and payer key hashes (but never full addresses)
+ * GET /x402/analytics/detailed?cursor=<cursor>&limit=<limit>
+ */
+protectedRouter.get("/x402/analytics/detailed", (_req, res, next) => {
+  try {
+    const cursor = typeof _req.query.cursor === "string" ? _req.query.cursor : undefined;
+    const limit = typeof _req.query.limit === "string" ? parseInt(_req.query.limit, 10) : undefined;
+
+    // Validate limit
+    if (limit !== undefined && (isNaN(limit) || limit < 1 || limit > 100)) {
+      return res.status(400).json({
+        error: "Invalid limit parameter",
+        message: "limit must be a number between 1 and 100"
+      });
+    }
+
+    const analytics = getDetailedAnalyticsData(cursor, limit);
+    res.json(analytics);
+  } catch (error: any) {
+    res.status(400).json({
+      error: "Invalid analytics request",
+      message: error?.message ?? "Unknown error"
+    });
+  }
 });

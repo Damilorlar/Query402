@@ -1,4 +1,12 @@
-import type { ProviderCapability, ProviderDefinition } from "@query402/shared";
+import type {
+  LatencyBand,
+  PaymentModeBand,
+  ProviderCapability,
+  ProviderDefinition,
+  ProviderSlaBadge,
+  ReliabilityBand,
+  SourceType
+} from "@query402/shared";
 
 const envKeyMapping: Record<string, string[]> = {
   "search.live": ["GROQ_API_KEY"],
@@ -16,6 +24,78 @@ function computeCaveat(providerId: string): string | null {
   const missing = required.filter((key) => !process.env[key]);
   if (missing.length === 0) return null;
   return `${missing.join(", ")} not configured — falling back to deterministic results`;
+}
+
+function computeLatencyBand(latencyMs: number): LatencyBand {
+  if (latencyMs < 800) return "fast";
+  if (latencyMs < 1500) return "standard";
+  return "slow";
+}
+
+function computeReliabilityBand(sourceType: SourceType): ReliabilityBand {
+  switch (sourceType) {
+    case "live":
+      return "live";
+    case "deterministic-fallback":
+      return "demo";
+    case "unavailable":
+      return "not-verified";
+    default:
+      return "not-verified";
+  }
+}
+
+function computePaymentMode(sourceType: SourceType): PaymentModeBand {
+  switch (sourceType) {
+    case "live":
+      return "x402";
+    case "deterministic-fallback":
+      return "demo";
+    case "unavailable":
+      return "not-verified";
+    default:
+      return "not-verified";
+  }
+}
+
+export function computeSlaBadge(
+  latencyEstimateMs: number,
+  sourceType: SourceType
+): ProviderSlaBadge {
+  const latencyBand = computeLatencyBand(latencyEstimateMs);
+  const reliabilityBand = computeReliabilityBand(sourceType);
+  const paymentMode = computePaymentMode(sourceType);
+
+  const latencyLabel =
+    latencyBand === "fast"
+      ? "Fast"
+      : latencyBand === "standard"
+        ? "Standard"
+        : latencyBand === "slow"
+          ? "Slow"
+          : "Unknown latency";
+
+  const reliabilityLabel =
+    reliabilityBand === "live"
+      ? "Live API"
+      : reliabilityBand === "demo"
+        ? "Demo provider"
+        : reliabilityBand === "fallback"
+          ? "Fallback provider"
+          : "Not verified";
+
+  const paymentLabel =
+    paymentMode === "x402"
+      ? "x402 payment"
+      : paymentMode === "demo"
+        ? "Demo payment"
+        : paymentMode === "sponsored"
+          ? "Sponsored"
+          : "Payment not verified";
+
+  const badgeCopy = `${latencyLabel} response · ${reliabilityLabel} · ${paymentLabel}`;
+
+  return { latencyBand, reliabilityBand, paymentMode, badgeCopy };
 }
 
 export function buildCapabilityMatrix(): ProviderCapability[] {

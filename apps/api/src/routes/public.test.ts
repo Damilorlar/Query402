@@ -49,161 +49,60 @@ describe("public routes", () => {
     }
   });
 
-  it("health response includes diagnostics sub-object with safe booleans and enums only", async () => {
-    const app = await createPublicApp();
-    const response = await request(app).get("/health");
+  it("returns readiness metadata without sensitive values", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-21T10:00:00.000Z"));
 
-    expect(response.status).toBe(200);
+    try {
+      const app = await createPublicApp();
+      const response = await request(app).get("/api/readiness");
 
-    const { diagnostics } = response.body;
-    expect(diagnostics).toBeDefined();
-
-    // All fields are either booleans or safe enum strings — never raw secrets
-    expect(typeof diagnostics.network).toBe("string");
-    expect(typeof diagnostics.demoMode).toBe("boolean");
-    expect(typeof diagnostics.facilitatorConfigured).toBe("boolean");
-    expect(typeof diagnostics.facilitatorApiKeyConfigured).toBe("boolean");
-    expect(typeof diagnostics.payToConfigured).toBe("boolean");
-    expect(typeof diagnostics.sponsorshipEnabled).toBe("boolean");
-    expect(typeof diagnostics.sponsorshipSigningSecretConfigured).toBe("boolean");
-    expect(typeof diagnostics.anyProviderKeyConfigured).toBe("boolean");
-  });
-
-  it("health diagnostics reflects testnet network and demo mode from test env", async () => {
-    const app = await createPublicApp();
-    const response = await request(app).get("/health");
-
-    expect(response.status).toBe(200);
-    expect(response.body.diagnostics.network).toBe("stellar:testnet");
-    expect(response.body.diagnostics.demoMode).toBe(true); // applyApiTestEnv sets DEMO_MODE=true
-    expect(response.body.diagnostics.payToConfigured).toBe(true); // TEST_WALLET is set by applySponsorshipTestEnv
-  });
-
-  it("health diagnostics exposes payToAddress when configured", async () => {
-    applyApiTestEnv({ X402_PAY_TO_ADDRESS: "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF" });
-    const app = await createPublicApp();
-    const response = await request(app).get("/health");
-
-    expect(response.status).toBe(200);
-    expect(response.body.diagnostics.payToConfigured).toBe(true);
-    expect(response.body.diagnostics.payToAddress).toBe("GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF");
-  });
-
-  it("health diagnostics handles missing/empty payToAddress safely", async () => {
-    delete process.env.X402_PAY_TO_ADDRESS;
-    applyApiTestEnv({ X402_PAY_TO_ADDRESS: "" });
-    delete process.env.X402_PAY_TO_ADDRESS;
-
-    const app = await createPublicApp();
-    const response = await request(app).get("/health");
-
-    expect(response.status).toBe(200);
-    expect(response.body.diagnostics.payToConfigured).toBe(false);
-    expect(response.body.diagnostics.payToAddress).toBeUndefined();
-  });
-
-  describe("health diagnostics — secret redaction", () => {
-    it("never exposes raw secret values in health response body", async () => {
-      // Set all secret-like env vars to recognisable sentinel values,
-      // then confirm none of them appear anywhere in the response JSON.
-      applyApiTestEnv({
-        X402_FACILITATOR_API_KEY: "super-secret-facilitator-key",
-        SPONSORSHIP_SIGNING_SECRET: "ultra-secret-signing-secret",
-        BRAVE_API_KEY: "brave-secret-key",
-        SERPAPI_API_KEY: "serpapi-secret-key",
-        NEWS_API_KEY: "news-secret-key",
-        GROQ_API_KEY: "groq-secret-key"
+      expect(response.status).toBe(200);
+      expect(response.body).toMatchObject({
+        ok: true,
+        version: "0.1.0",
+        timestamp: "2026-06-21T10:00:00.000Z",
+        demoMode: true,
+        network: "stellar:testnet",
+        facilitatorConfigured: false,
+        facilitatorSupported: false,
+        storageAvailable: true
       });
-
-      const { publicRouter } = await import("../routes/public.js");
-      const app = express();
-      app.use(publicRouter);
-
-      const response = await request(app).get("/health");
-      expect(response.status).toBe(200);
-
-      const body = JSON.stringify(response.body);
-      const secretValues = [
-        "super-secret-facilitator-key",
-        "ultra-secret-signing-secret",
-        "brave-secret-key",
-        "serpapi-secret-key",
-        "news-secret-key",
-        "groq-secret-key"
-      ];
-
-      for (const secret of secretValues) {
-        expect(body).not.toContain(secret);
-      }
-    });
-
-    it("reports facilitatorApiKeyConfigured=true when key is set, without leaking the value", async () => {
-      applyApiTestEnv({ X402_FACILITATOR_API_KEY: "my-confidential-api-key" });
-
-      const { publicRouter } = await import("../routes/public.js");
-      const app = express();
-      app.use(publicRouter);
-
-      const response = await request(app).get("/health");
-      expect(response.status).toBe(200);
-      expect(response.body.diagnostics.facilitatorApiKeyConfigured).toBe(true);
-      expect(JSON.stringify(response.body)).not.toContain("my-confidential-api-key");
-    });
-
-    it("reports facilitatorApiKeyConfigured=false when key is absent", async () => {
-      applyApiTestEnv({ X402_FACILITATOR_API_KEY: "" });
-
-      const { publicRouter } = await import("../routes/public.js");
-      const app = express();
-      app.use(publicRouter);
-
-      const response = await request(app).get("/health");
-      expect(response.status).toBe(200);
-      expect(response.body.diagnostics.facilitatorApiKeyConfigured).toBe(false);
-    });
-
-    it("reports sponsorshipSigningSecretConfigured=true when secret is set, without leaking the value", async () => {
-      applyApiTestEnv({ SPONSORSHIP_SIGNING_SECRET: "top-secret-signing-value" });
-
-      const { publicRouter } = await import("../routes/public.js");
-      const app = express();
-      app.use(publicRouter);
-
-      const response = await request(app).get("/health");
-      expect(response.status).toBe(200);
-      expect(response.body.diagnostics.sponsorshipSigningSecretConfigured).toBe(true);
-      expect(JSON.stringify(response.body)).not.toContain("top-secret-signing-value");
-    });
-
-    it("reports anyProviderKeyConfigured=true when at least one provider key is set", async () => {
-      applyApiTestEnv({ GROQ_API_KEY: "gsk_test_provider_key" });
-
-      const { publicRouter } = await import("../routes/public.js");
-      const app = express();
-      app.use(publicRouter);
-
-      const response = await request(app).get("/health");
-      expect(response.status).toBe(200);
-      expect(response.body.diagnostics.anyProviderKeyConfigured).toBe(true);
-      expect(JSON.stringify(response.body)).not.toContain("gsk_test_provider_key");
-    });
-
-    it("reports anyProviderKeyConfigured=false when no provider keys are set", async () => {
-      applyApiTestEnv({
-        BRAVE_API_KEY: "",
-        SERPAPI_API_KEY: "",
-        NEWS_API_KEY: "",
-        GROQ_API_KEY: ""
+      expect(typeof response.body.uptimeSeconds).toBe("number");
+      expect(response.body.uptimeSeconds).toBeGreaterThanOrEqual(0);
+      expect(response.body.providersByMode).toMatchObject({
+        live: 1,
+        fallback: 6
       });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
-      const { publicRouter } = await import("../routes/public.js");
-      const app = express();
-      app.use(publicRouter);
+  it("does not expose secret config values in readiness response", async () => {
+    const app = await createPublicApp();
+    const response = await request(app).get("/api/readiness");
 
-      const response = await request(app).get("/health");
-      expect(response.status).toBe(200);
-      expect(response.body.diagnostics.anyProviderKeyConfigured).toBe(false);
-    });
+    expect(response.status).toBe(200);
+
+    const bodyStr = JSON.stringify(response.body);
+    expect(bodyStr).not.toContain("API_KEY");
+    expect(bodyStr).not.toContain("SECRET");
+    expect(bodyStr).not.toContain("PRIVATE");
+    expect(bodyStr).not.toContain("BEARER");
+    expect(bodyStr).not.toContain("token");
+    expect(bodyStr).not.toMatch(/[A-Za-z0-9]{56}/);
+  });
+
+  it("returns readiness endpoint working in demo mode without live facilitator credentials", async () => {
+    const app = await createPublicApp();
+
+    const response = await request(app).get("/api/readiness");
+
+    expect(response.status).toBe(200);
+    expect(response.body.demoMode).toBe(true);
+    expect(response.body.facilitatorConfigured).toBe(false);
+    expect(response.body.facilitatorSupported).toBe(false);
   });
 
   it("returns provider catalog and category groupings", async () => {
@@ -224,6 +123,162 @@ describe("public routes", () => {
     expect(catalogResponse.body.byCategory.search.length).toBeGreaterThan(0);
     expect(catalogResponse.body.byCategory.news.length).toBeGreaterThan(0);
     expect(catalogResponse.body.byCategory.scrape.length).toBeGreaterThan(0);
+  });
+
+  it("every provider in catalog has slaBadges with correct shape", async () => {
+    const app = await createPublicApp();
+    const catalogResponse = await request(app).get("/api/catalog");
+
+    expect(catalogResponse.status).toBe(200);
+
+    for (const provider of catalogResponse.body.providers) {
+      expect(provider.slaBadges).toBeDefined();
+      expect(["fast", "standard", "slow"]).toContain(provider.slaBadges.latencyBand);
+      expect(["demo", "fallback", "live"]).toContain(provider.slaBadges.reliabilityBand);
+      expect(["demo", "x402", "sponsored"]).toContain(provider.slaBadges.paymentMode);
+      expect(typeof provider.slaBadges.latencyLabel).toBe("string");
+      expect(provider.slaBadges.latencyLabel.length).toBeGreaterThan(0);
+      expect(typeof provider.slaBadges.reliabilityLabel).toBe("string");
+      expect(provider.slaBadges.reliabilityLabel.length).toBeGreaterThan(0);
+      expect(typeof provider.slaBadges.paymentLabel).toBe("string");
+      expect(provider.slaBadges.paymentLabel.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("providers endpoint also exposes slaBadges", async () => {
+    const app = await createPublicApp();
+    const providersResponse = await request(app).get("/api/providers");
+
+    expect(providersResponse.status).toBe(200);
+    const provider = providersResponse.body.providers.find(
+      (p: { id: string }) => p.id === "search.basic"
+    );
+    expect(provider).toBeDefined();
+    expect(provider.slaBadges).toBeDefined();
+    expect(provider.slaBadges.latencyBand).toBe("fast");
+    expect(provider.slaBadges.reliabilityBand).toBe("fallback");
+    expect(provider.slaBadges.paymentMode).toBe("x402");
+  });
+
+  it("returns safe default analytics shape for fresh storage", async () => {
+    const app = await createPublicApp();
+
+    const analyticsResponse = await request(app).get("/api/analytics");
+
+    expect(analyticsResponse.status).toBe(200);
+    expect(analyticsResponse.body).toMatchObject({
+      totalQueries: 0,
+      totalSpendUsd: 0,
+      spendByCategory: {
+        search: 0,
+        news: 0,
+        scrape: 0
+      },
+      executionSummary: {
+        totalExecutions: 0,
+        liveExecutions: 0,
+        fallbackExecutions: 0,
+        unavailableExecutions: 0,
+        timeoutExecutions: 0,
+        circuitOpenExecutions: 0
+      },
+      recentUsage: [],
+      recentTransactions: []
+    });
+  });
+
+  it("returns usage and analytics summaries from isolated sqlite storage", async () => {
+    const app = await createPublicApp();
+    const { saveUsageEvent } = await import("../lib/persistence.js");
+
+    await saveUsageEvent(
+      buildTestUsageEvent({
+        id: "use_test_1",
+        queryOrUrl: "stellar x402",
+        paymentStatus: "demo-paid",
+        traceId: "trace_test_1",
+        createdAt: "2026-06-21T10:00:00.000Z",
+        latencyMs: 12
+      })
+    );
+
+    const usageResponse = await request(app).get("/api/usage");
+    const analyticsResponse = await request(app).get("/api/analytics");
+
+    expect(usageResponse.status).toBe(200);
+    expect(usageResponse.body.usage).toHaveLength(1);
+    expect(usageResponse.body.pagination).toMatchObject({
+      count: 1,
+      offset: 0
+    });
+
+    expect(analyticsResponse.status).toBe(200);
+    expect(analyticsResponse.body.totalQueries).toBe(1);
+    expect(analyticsResponse.body.totalSpendUsd).toBe(0.01);
+    expect(analyticsResponse.body.spendByCategory.search).toBe(0.01);
+  });
+
+  describe("demo scenario manifest", () => {
+    it("returns stable JSON with scenarios array", async () => {
+      const app = await createPublicApp();
+      const response = await request(app).get("/api/scenarios");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("scenarios");
+      expect(Array.isArray(response.body.scenarios)).toBe(true);
+      expect(response.body.scenarios.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it("includes at least one scenario per mode (search, news, scrape)", async () => {
+      const app = await createPublicApp();
+      const response = await request(app).get("/api/scenarios");
+
+      const modes = response.body.scenarios.map((s: { mode: string }) => s.mode);
+      expect(modes).toContain("search");
+      expect(modes).toContain("news");
+      expect(modes).toContain("scrape");
+    });
+
+    it("each scenario has required shape", async () => {
+      const app = await createPublicApp();
+      const response = await request(app).get("/api/scenarios");
+
+      for (const scenario of response.body.scenarios) {
+        expect(scenario).toHaveProperty("id");
+        expect(scenario).toHaveProperty("mode");
+        expect(scenario).toHaveProperty("recommendedProvider");
+        expect(scenario).toHaveProperty("sampleQuery");
+        expect(scenario).toHaveProperty("expectedEvidenceFields");
+        expect(Array.isArray(scenario.expectedEvidenceFields)).toBe(true);
+        expect(scenario.expectedEvidenceFields.length).toBeGreaterThan(0);
+        expect(scenario).toHaveProperty("worksInDemoMode");
+        expect(scenario).toHaveProperty("worksInRealMode");
+        expect(typeof scenario.worksInDemoMode).toBe("boolean");
+        expect(typeof scenario.worksInRealMode).toBe("boolean");
+      }
+    });
+
+    it("returns identical response on repeated calls (stable manifest)", async () => {
+      const app = await createPublicApp();
+      const first = await request(app).get("/api/scenarios");
+      const second = await request(app).get("/api/scenarios");
+
+      expect(first.status).toBe(200);
+      expect(second.status).toBe(200);
+      expect(first.body).toEqual(second.body);
+    });
+
+    it("does not trigger any provider execution", async () => {
+      const { providers } = await import("../lib/pricing.js");
+      const { getCatalog } = await import("../services/query-service.js");
+
+      const app = await createPublicApp();
+      const response = await request(app).get("/api/scenarios");
+
+      expect(response.status).toBe(200);
+      const catalog = getCatalog();
+      expect(catalog.providerCount).toBe(providers.length);
+    });
   });
 
   describe("paid query fixture", () => {

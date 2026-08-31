@@ -78,64 +78,10 @@ export const config = {
   analyticsStorage: parsed.data.ANALYTICS_STORAGE
 };
 
-/**
- * Returns the configured pay-to address, or throws when it is missing.
- * Paid execution must fail closed: payment requirements, evidence, and
- * persisted payment attempts must never be generated with an empty pay-to.
- * Display/diagnostics paths should read the optional value from
- * getConfigSnapshot() instead.
- */
-export function requirePayToAddress(): string {
-  const address = config.X402_PAY_TO_ADDRESS;
-  if (!address) {
-    throw new Error(
-      "X402_PAY_TO_ADDRESS is not configured. Refusing to generate payment requirements or evidence without a valid pay-to address."
-    );
-  }
-  return address;
-}
-
-/**
- * A sanitized snapshot of the deployment configuration.
- * Contains only booleans and safe enum values — never secrets, private keys, or auth headers.
- */
-export interface ConfigSnapshot {
-  /** Stellar network identifier, e.g. "stellar:testnet" or "stellar:pubnet" */
-  network: string;
-  /** Whether the API is running in demo mode (no real payments) */
-  demoMode: boolean;
-  /** Whether an x402 facilitator URL is configured */
-  facilitatorConfigured: boolean;
-  /** Whether an x402 facilitator API key is configured (value never exposed) */
-  facilitatorApiKeyConfigured: boolean;
-  /** Whether a pay-to Stellar address is configured */
-  payToConfigured: boolean;
-  /** The configured pay-to Stellar public address if available */
-  payToAddress?: string;
-  /** Whether sponsorship/subsidy mode is enabled */
-  sponsorshipEnabled: boolean;
-  /** Whether a sponsorship signing secret is configured (value never exposed) */
-  sponsorshipSigningSecretConfigured: boolean;
-  /** Whether at least one search/AI provider API key is configured (values never exposed) */
-  anyProviderKeyConfigured: boolean;
-}
-
-/**
- * Returns a sanitized snapshot of the current deployment configuration.
- * Safe to include in public health/diagnostics responses — no secrets are returned.
- */
-export function getConfigSnapshot(): ConfigSnapshot {
-  return {
-    network: config.STELLAR_NETWORK,
-    demoMode: config.demoMode,
-    facilitatorConfigured: Boolean(config.X402_FACILITATOR_URL),
-    facilitatorApiKeyConfigured: Boolean(config.X402_FACILITATOR_API_KEY),
-    payToConfigured: Boolean(config.X402_PAY_TO_ADDRESS),
-    payToAddress: config.X402_PAY_TO_ADDRESS,
-    sponsorshipEnabled: config.sponsorshipEnabled,
-    sponsorshipSigningSecretConfigured: Boolean(config.SPONSORSHIP_SIGNING_SECRET),
-    anyProviderKeyConfigured: Boolean(
-      config.BRAVE_API_KEY || config.SERPAPI_API_KEY || config.NEWS_API_KEY || config.GROQ_API_KEY
-    )
-  };
+export function getFacilitatorConfigured(): boolean {
+  return (
+    !!parsed.data.X402_FACILITATOR_URL &&
+    !!parsed.data.X402_FACILITATOR_API_KEY &&
+    parsed.data.X402_FACILITATOR_API_KEY.length > 0
+  );
 }
