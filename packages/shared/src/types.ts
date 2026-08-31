@@ -1,7 +1,27 @@
 export type QueryMode = "search" | "news" | "scrape";
 export type ProviderCategory = QueryMode;
 export type SourceType = "live" | "deterministic-fallback" | "unavailable";
+export type ExecutionFallbackReason =
+  | "timeout"
+  | "circuit-open"
+  | "unhealthy"
+  | "adapter-error"
+  | "deterministic-provider"
+  | "missing-fallback";
+export type CircuitBreakerState = "closed" | "half-open" | "open";
 export type PaymentSource = "sponsored" | "wallet" | "demo";
+
+export type LatencyBucket = "<1s" | "1-3s" | "3-10s" | ">10s" | "unknown";
+
+export interface ProviderExecutionMetadata {
+  providerId: string;
+  source: SourceType;
+  usedFallback: boolean;
+  fallbackReason?: ExecutionFallbackReason;
+  latencyEstimateMs: number;
+  observedDurationMs: number;
+  circuitBreakerState?: CircuitBreakerState;
+}
 
 export interface ProviderDefinition {
   id: string;
@@ -32,8 +52,49 @@ export interface QueryResult {
   traceId: string;
   items: ProviderResultItem[];
   source: SourceType;
+  execution: ProviderExecutionMetadata;
   raw?: Record<string, unknown>;
 }
+
+export type PaymentEvidenceStatus = "demo-paid" | "verified" | "settled" | "failed";
+
+export interface BasePaymentEvidence {
+  status: PaymentEvidenceStatus;
+  network: string;
+  amountUsd: number;
+  payToAddress: string;
+  facilitatorUrl: string;
+  payerPublicKey?: string;
+  error?: string;
+}
+
+export interface DemoPaymentEvidence extends BasePaymentEvidence {
+  status: "demo-paid";
+  demoId: string;
+}
+
+export interface VerifiedPaymentEvidence extends BasePaymentEvidence {
+  status: "verified";
+  paymentPayload: string;
+}
+
+export interface SettledPaymentEvidence extends BasePaymentEvidence {
+  status: "settled";
+  transactionHash: string;
+  paymentPayload: string;
+}
+
+export interface FailedPaymentEvidence extends BasePaymentEvidence {
+  status: "failed";
+  error: string;
+  paymentPayload?: string;
+}
+
+export type PaymentEvidence =
+  | DemoPaymentEvidence
+  | VerifiedPaymentEvidence
+  | SettledPaymentEvidence
+  | FailedPaymentEvidence;
 
 export interface UsageEvent {
   id: string;
@@ -52,12 +113,16 @@ export interface UsageEvent {
   facilitatorUrl?: string;
   payerPublicKey?: string;
   traceId: string;
+  paymentId: string;
   createdAt: string;
   latencyMs: number;
+  execution?: ProviderExecutionMetadata;
   sponsorshipGrantId?: string;
   policyDecision?: string;
   paymentSource?: PaymentSource;
   sponsorPublicKey?: string;
+  priceOutlier?: boolean;
+  priceOutlierReason?: string;
 }
 
 export interface PaymentAttempt {
@@ -92,17 +157,47 @@ export interface AnalyticsSummary {
   spendByCategory: Record<QueryMode, number>;
   settledSpendByCategory: Record<QueryMode, number>;
   demoSpendByCategory: Record<QueryMode, number>;
+  executionSummary: {
+    totalExecutions: number;
+    liveExecutions: number;
+    fallbackExecutions: number;
+    unavailableExecutions: number;
+    timeoutExecutions: number;
+    circuitOpenExecutions: number;
+    fallbackByCategory: Record<QueryMode, number>;
+    fallbackReasonCounts: Record<ExecutionFallbackReason, number>;
+  };
+  totalDemoQueries: number;
+  totalSettledPayments: number;
+  spendByPaymentSource: Record<string, number>;
+  recentDemoActivity: PaymentAttempt[];
+  recentSettledPayments: PaymentAttempt[];
   recentTransactions: PaymentAttempt[];
   recentUsage: UsageEvent[];
 }
 
-export interface PrivacySafeAnalyticsRecord {
+export interface ProviderCapability {
   id: string;
-  timestamp: string;
-  payerAddress: string;
-  volumeType: 'demo' | 'settled';
-  amount: number;
-  asset: string;
+  name: string;
+  category: ProviderCategory;
+  priceUsd: number;
+  sourceType: SourceType;
+  latencyEstimateMs: number;
+  enabled: boolean;
+  hasFallback: boolean;
+  caveat: string | null;
+}
+
+export interface SponsorshipGrant {
+  grantId: string;
+  wallet: string;
+  network: string;
+  mode?: QueryMode;
+  providerId?: string;
+  maxAmountUsd: number;
+  expiresAt: string;
+  nonce: string;
+  issuedAt: string;
 }
 
 export interface PaginatedAnalyticsResponse {
@@ -126,4 +221,47 @@ export interface PaginatedAnalyticsResponse {
   hasMore: boolean;
   nextCursor: string | null;
   data: PrivacySafeAnalyticsRecord[];
+}
+
+export interface SponsorshipPreviewBudget {
+  limitUsd: number;
+  spentUsd: number;
+  remainingUsd: number;
+  windowStart: string;
+}
+
+export interface SponsorshipPreviewRestrictions {
+  mode: QueryMode | null;
+  providerId: string | null;
+}
+
+export interface SponsorshipPreviewGrant {
+  maxAmountUsd: number;
+  ttlSeconds: number;
+  expiresInSeconds: number;
+  restrictions: SponsorshipPreviewRestrictions;
+}
+
+export interface SponsorshipPreview {
+  sponsorshipEnabled: boolean;
+  storageAvailable: boolean;
+  available: boolean;
+  decision: string;
+  network: string;
+  wallet: string;
+  mode: QueryMode;
+  provider: string;
+  providerName: string;
+  grant: SponsorshipPreviewGrant;
+  quotedPriceUsd: number;
+  priceFitsGrant: boolean;
+  perWalletBudget: SponsorshipPreviewBudget;
+  globalBudget: SponsorshipPreviewBudget;
+  reason?: string;
+}
+
+export interface SponsorshipPreviewRequest {
+  wallet: string;
+  mode: QueryMode;
+  provider: string;
 }

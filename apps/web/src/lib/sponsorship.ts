@@ -1,5 +1,10 @@
 import { signMessage } from "@stellar/freighter-api";
-import type { QueryMode, SignedGrant, SponsorshipChallenge } from "@query402/shared";
+import type {
+  QueryMode,
+  SignedGrant,
+  SponsorshipChallenge,
+  SponsorshipPreview
+} from "@query402/shared";
 import type { PaidQueryResponse } from "../types.js";
 import { fetchJson } from "./api.js";
 import { buildPaidClientRequestKey, getIdempotencyKey } from "./idempotency.js";
@@ -20,7 +25,7 @@ function extractFreighterError(error: unknown) {
   return JSON.stringify(error);
 }
 
-function normalizeSignature(signedMessage: string | Buffer | null): string {
+function normalizeSignature(signedMessage: string | Uint8Array | null): string {
   if (!signedMessage) {
     throw new Error("Freighter did not return a message signature");
   }
@@ -29,12 +34,35 @@ function normalizeSignature(signedMessage: string | Buffer | null): string {
     return signedMessage;
   }
 
-  return Buffer.from(signedMessage).toString("base64");
+  let binary = "";
+  signedMessage.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary);
 }
 
 export async function fetchSponsorshipEnabled(apiBaseUrl: string): Promise<boolean> {
   const health = await fetchJson<{ sponsorshipEnabled?: boolean }>(`${apiBaseUrl}/health`);
   return health.sponsorshipEnabled === true;
+}
+
+export async function fetchSponsorshipPreview(input: {
+  apiBaseUrl: string;
+  wallet: string;
+  mode: QueryMode;
+  provider: string;
+  signal?: AbortSignal;
+}): Promise<SponsorshipPreview> {
+  return fetchJson<SponsorshipPreview>(`${input.apiBaseUrl}/api/sponsorship/preview`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      wallet: input.wallet,
+      mode: input.mode,
+      provider: input.provider
+    }),
+    ...(input.signal ? { signal: input.signal } : {})
+  });
 }
 
 export async function runSponsoredPaidQuery(input: {
