@@ -124,4 +124,237 @@ describe("public routes", () => {
     expect(catalogResponse.body.byCategory.news.length).toBeGreaterThan(0);
     expect(catalogResponse.body.byCategory.scrape.length).toBeGreaterThan(0);
   });
+
+  describe("paid query fixture", () => {
+    it("analytics reflects settled paid query from fixture", async () => {
+      const { persistPaymentAndUsage } = await import("../lib/persistence.js");
+      await persistPaymentAndUsage(buildPaidQueryFixture());
+
+      const app = await createPublicApp();
+      const analyticsResponse = await request(app).get("/api/analytics");
+
+      expect(analyticsResponse.status).toBe(200);
+      expect(analyticsResponse.body).toMatchObject({
+        totalQueries: 1,
+        totalSpendUsd: 0.01,
+        settledSpendUsd: 0.01,
+        demoSpendUsd: 0,
+        spendByCategory: { search: 0.01, news: 0, scrape: 0 },
+        executionSummary: {
+          totalExecutions: 1,
+          liveExecutions: 1,
+          fallbackExecutions: 0
+        }
+      });
+    });
+
+    it("analytics recentUsage and recentTransactions carry fixture evidence fields", async () => {
+      const { persistPaymentAndUsage } = await import("../lib/persistence.js");
+      await persistPaymentAndUsage(buildPaidQueryFixture());
+
+      const app = await createPublicApp();
+      const analyticsResponse = await request(app).get("/api/analytics");
+
+      expect(analyticsResponse.status).toBe(200);
+
+      const { recentUsage, recentTransactions } = analyticsResponse.body;
+
+      expect(recentUsage).toHaveLength(1);
+      expect(recentUsage[0]).toMatchObject({
+        id: "use_fixture_0001",
+        mode: "search",
+        providerId: "search.basic",
+        paymentStatus: "settled",
+        paymentKind: "settled",
+        asset: "USDC:testnet",
+        traceId: "trace_fixture_0001",
+        createdAt: "2026-06-30T12:00:00.000Z"
+      });
+
+      expect(recentTransactions).toHaveLength(1);
+      expect(recentTransactions[0]).toMatchObject({
+        id: "pay_fixture_0001",
+        providerId: "search.basic",
+        amountUsd: 0.01,
+        evidenceKind: "settled",
+        asset: "USDC:testnet",
+        status: "settled"
+      });
+    });
+
+    it("fixture data is unchanged across multiple insertions into separate stores", async () => {
+      const first = buildPaidQueryFixture();
+      const second = buildPaidQueryFixture();
+
+      expect(first.payment).toEqual(second.payment);
+      expect(first.usage).toEqual(second.usage);
+    });
+
+    it("demo variant records correct payment markers via fixture overrides", async () => {
+      const { persistPaymentAndUsage } = await import("../lib/persistence.js");
+      await persistPaymentAndUsage(
+        buildPaidQueryFixture({
+          payment: {
+            id: "pay_fixture_demo_01",
+            status: "demo-paid",
+            evidenceKind: "demo",
+            transactionHash: undefined
+          },
+          usage: {
+            id: "use_fixture_demo_01",
+            paymentStatus: "demo-paid",
+            paymentKind: "demo",
+            paymentTxHash: undefined
+          }
+        })
+      );
+
+      const app = await createPublicApp();
+      const analyticsResponse = await request(app).get("/api/analytics");
+
+      expect(analyticsResponse.status).toBe(200);
+      expect(analyticsResponse.body).toMatchObject({
+        totalQueries: 1,
+        demoSpendUsd: 0.01,
+        settledSpendUsd: 0
+      });
+
+      const { recentUsage, recentTransactions } = analyticsResponse.body;
+      expect(recentUsage[0]).toMatchObject({
+        id: "use_fixture_demo_01",
+        paymentStatus: "demo-paid",
+        paymentKind: "demo"
+      });
+      expect(recentTransactions[0]).toMatchObject({
+        id: "pay_fixture_demo_01",
+        status: "demo-paid",
+        evidenceKind: "demo"
+      });
+    });
+  });
+
+  it("returns safe default analytics shape for fresh storage", async () => {
+    const app = await createPublicApp();
+
+    const analyticsResponse = await request(app).get("/api/analytics");
+
+    expect(analyticsResponse.status).toBe(200);
+    expect(analyticsResponse.body).toMatchObject({
+      totalQueries: 0,
+      totalSpendUsd: 0,
+      spendByCategory: {
+        search: 0,
+        news: 0,
+        scrape: 0
+      },
+      executionSummary: {
+        totalExecutions: 0,
+        liveExecutions: 0,
+        fallbackExecutions: 0,
+        unavailableExecutions: 0,
+        timeoutExecutions: 0,
+        circuitOpenExecutions: 0
+      },
+      totalDemoQueries: 0,
+      totalSettledPayments: 0,
+      spendByPaymentSource: {},
+      recentDemoActivity: [],
+      recentSettledPayments: [],
+      recentUsage: [],
+      recentTransactions: []
+    });
+  });
+
+  it("returns usage and analytics summaries from isolated sqlite storage", async () => {
+    const app = await createPublicApp();
+    const { persistPaymentAndUsage } = await import("../lib/persistence.js");
+    const { buildTestPaymentAttempt } = await import("../test/storage-test-helpers.js");
+
+    await persistPaymentAndUsage({
+      payment: buildTestPaymentAttempt({
+        id: "pay_demo_1",
+        status: "demo-paid",
+        paymentSource: "demo",
+        amountUsd: 0.01
+      }),
+      usage: buildTestUsageEvent({
+        id: "use_demo_1",
+        queryOrUrl: "stellar x402",
+        paymentStatus: "demo-paid",
+        traceId: "trace_demo_1",
+        createdAt: "2026-06-21T10:00:00.000Z",
+        latencyMs: 12
+      })
+    });
+
+    await persistPaymentAndUsage({
+      payment: buildTestPaymentAttempt({
+        id: "pay_settled_1",
+        status: "settled",
+        paymentSource: "wallet",
+        amountUsd: 0.02
+      }),
+      usage: buildTestUsageEvent({
+        id: "use_settled_1",
+        queryOrUrl: "settled query",
+        paymentStatus: "settled",
+        traceId: "trace_settled_1",
+        createdAt: "2026-06-21T11:00:00.000Z",
+        latencyMs: 34
+      })
+    });
+
+    const usageResponse = await request(app).get("/api/usage");
+    const analyticsResponse = await request(app).get("/api/analytics");
+
+    expect(usageResponse.status).toBe(200);
+    expect(usageResponse.body.usage).toHaveLength(2);
+    expect(usageResponse.body.pagination).toMatchObject({
+      count: 2,
+      offset: 0
+    });
+
+    expect(analyticsResponse.status).toBe(200);
+    expect(analyticsResponse.body.totalQueries).toBe(2);
+    expect(analyticsResponse.body.totalSpendUsd).toBe(0.02);
+    expect(analyticsResponse.body.spendByCategory.search).toBe(0.02);
+    expect(analyticsResponse.body.totalDemoQueries).toBe(1);
+    expect(analyticsResponse.body.totalSettledPayments).toBe(1);
+    expect(analyticsResponse.body.recentDemoActivity).toHaveLength(1);
+    expect(analyticsResponse.body.recentDemoActivity[0].id).toBe("pay_demo_1");
+    expect(analyticsResponse.body.recentSettledPayments).toHaveLength(1);
+    expect(analyticsResponse.body.recentSettledPayments[0].id).toBe("pay_settled_1");
+    expect(analyticsResponse.body.spendByPaymentSource).toMatchObject({
+      demo: 0.01,
+      wallet: 0.02
+    });
+  });
+
+  it("returns capability matrix with correct shape and deterministic order", async () => {
+    const app = await createPublicApp();
+    const response = await request(app).get("/api/matrix");
+
+    expect(response.status).toBe(200);
+    expect(response.body.updatedAt).toEqual(expect.any(String));
+
+    const { providers: matrix } = response.body;
+    expect(Array.isArray(matrix)).toBe(true);
+    expect(matrix.length).toBeGreaterThan(0);
+
+    for (const entry of matrix) {
+      const parsed = providerCapabilitySchema.safeParse(entry);
+      expect(parsed.success).toBe(true);
+    }
+
+    for (let i = 1; i < matrix.length; i++) {
+      const prev = matrix[i - 1];
+      const curr = matrix[i];
+      const catCmp = prev.category.localeCompare(curr.category);
+      if (catCmp === 0) {
+        expect(prev.id.localeCompare(curr.id)).toBeLessThanOrEqual(0);
+      } else {
+        expect(catCmp).toBeLessThan(0);
+      }
+    }
+  });
 });

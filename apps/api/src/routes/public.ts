@@ -31,31 +31,11 @@ publicRouter.get("/health", (_req, res) => {
     sponsorshipEnabled: config.sponsorshipEnabled,
     demoMode: config.demoMode,
     timestamp: new Date().toISOString(),
-    uptimeSeconds: process.uptime()
-  });
-});
 
-publicRouter.get("/api/readiness", async (_req, res) => {
-  const facilitatorSupported = await checkFacilitatorSupported();
 
-  const providersByMode = {
-    live: providers.filter((p) => p.sourceType === "live").length,
-    fallback: providers.filter((p) => p.sourceType !== "live").length
-  };
-
-  res.json({
-    ok: true,
-    version: buildMetadata.version,
-    gitCommit: buildMetadata.gitCommit,
-    buildTime: buildMetadata.buildTime,
-    timestamp: new Date().toISOString(),
     uptimeSeconds: process.uptime(),
-    demoMode: config.demoMode,
-    network: config.STELLAR_NETWORK,
-    facilitatorConfigured: getFacilitatorConfigured(),
-    facilitatorSupported: facilitatorSupported.ok,
-    providersByMode,
-    storageAvailable: isStorageAvailable()
+    diagnostics: getConfigSnapshot()
+
   });
 });
 
@@ -101,16 +81,11 @@ publicRouter.get("/api/usage", async (req, res, next) => {
 
 publicRouter.get("/api/analytics", async (req, res, next) => {
   try {
-    const parsed = analyticsQuerySchema.safeParse(req.query);
-    if (!parsed.success) {
-      return res.status(400).json({ error: parsed.error.flatten() });
-    }
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
+    const cursor = req.query.cursor ? (req.query.cursor as string) : null;
 
-    const analytics = await getAnalyticsSummary({
-      recentUsageLimit: parsed.data.recentUsageLimit,
-      recentPaymentLimit: parsed.data.recentPaymentLimit
-    });
-    res.json(analytics);
+    const result = await fetchPaginatedAnalytics(limit, cursor);
+    return res.json(result);
   } catch (error) {
     next(error);
   }

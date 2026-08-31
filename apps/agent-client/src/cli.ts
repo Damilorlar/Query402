@@ -42,7 +42,7 @@ function usage() {
   console.log('  npm run cli -- scrape "https://example.com" --provider scrape.page');
   console.log("Options:");
   console.log("  --provider <id>    Provider ID (default: search.basic / news.fast / scrape.page)");
-  console.log("  --receipt          Output structured JSON receipt only");
+  console.log("  --receipt, --json  Output structured JSON receipt only");
 }
 
 function readArg(flag: string, args: string[]) {
@@ -66,7 +66,7 @@ export function buildReceipt(input: {
   mode: QueryMode;
   provider: string;
   term: string;
-  price?: number;
+  price?: string | number;
   traceId?: string;
 }) {
   return {
@@ -74,7 +74,7 @@ export function buildReceipt(input: {
     provider: input.provider,
     input: redactInput(input.term),
     price: input.price ?? null,
-    traceId: input.traceId ?? null,
+    traceId: input.traceId ?? null
   };
 }
 
@@ -119,6 +119,23 @@ async function main() {
     Record<string, unknown> | undefined;
   const evidenceBlock = (payload?.payment as Record<string, unknown>)?.evidence as
     Record<string, unknown> | undefined;
+
+  if (receiptMode) {
+    console.log(
+      JSON.stringify(
+        buildReceipt({
+          mode,
+          provider,
+          term,
+          price: resultBlock?.priceUsd as string | number | undefined,
+          traceId: resultBlock?.traceId as string | undefined
+        }),
+        null,
+        2
+      )
+    );
+    return;
+  }
 
   console.log(
     formatSummary({
