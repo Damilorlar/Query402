@@ -3,9 +3,9 @@ import express from "express";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  applySponsorshipTestEnv,
-  resetSponsorshipStore
-} from "../test/sponsorship-test-helpers.js";
+  applyApiTestEnv,
+  resetApiTestStorage
+} from "../test/api-test-helpers.js";
 
 const executeQueryMock = vi.fn();
 
@@ -66,17 +66,19 @@ function demoPaidRequest(app: express.Express) {
 }
 
 describe("x402 idempotency", () => {
-  let dbPath: string | undefined;
+  let analyticsDbPath: string | undefined;
+  let sponsorshipDbPath: string | undefined;
 
   beforeEach(() => {
-    dbPath = applySponsorshipTestEnv();
+    ({ analyticsDbPath, sponsorshipDbPath } = applyApiTestEnv());
     executeQueryMock.mockReset();
     mockQueryResult();
   });
 
   afterEach(async () => {
-    await resetSponsorshipStore(dbPath);
-    dbPath = undefined;
+    await resetApiTestStorage(analyticsDbPath, sponsorshipDbPath);
+    analyticsDbPath = undefined;
+    sponsorshipDbPath = undefined;
   });
 
   it("returns cached response for idempotent retries", async () => {
@@ -85,9 +87,11 @@ describe("x402 idempotency", () => {
 
     const first = await demoPaidRequest(app).set("Idempotency-Key", idempotencyKey);
     expect(first.status).toBe(200);
+    expect(first.body.traceId).toBe(first.body.result.traceId);
 
     const second = await demoPaidRequest(app).set("Idempotency-Key", idempotencyKey);
     expect(second.status).toBe(200);
+    expect(second.body.traceId).toBe(first.body.traceId);
     expect(second.body.result.traceId).toBe(first.body.result.traceId);
     expect(executeQueryMock).toHaveBeenCalledTimes(1);
   });
@@ -131,6 +135,7 @@ describe("x402 idempotency", () => {
       .set("payment-response", "demo-proof-replay");
 
     expect(replay.status).toBe(200);
+    expect(replay.body.traceId).toBe(first.body.traceId);
     expect(replay.body.result.traceId).toBe(first.body.result.traceId);
     expect(executeQueryMock).toHaveBeenCalledTimes(1);
   });

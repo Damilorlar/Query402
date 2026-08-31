@@ -44,12 +44,8 @@ export function buildPaymentProofLinks(input: {
     transaction: input.transactionHash
       ? buildTransactionLink(input.transactionHash, input.network)
       : "not_available",
-    payer: input.payerPublicKey
-      ? buildAccountLink(input.payerPublicKey, input.network)
-      : "not_available",
-    payTo: input.payToAddress
-      ? buildAccountLink(input.payToAddress, input.network)
-      : "not_available",
+    payer: input.payerPublicKey ? buildAccountLink(input.payerPublicKey) : "not_available",
+    payTo: input.payToAddress ? buildAccountLink(input.payToAddress) : "not_available",
     network: input.network ?? "unknown",
     asset: input.asset ?? "not_available"
   };

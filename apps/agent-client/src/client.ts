@@ -104,6 +104,11 @@ export async function runPaidQuery(input: {
   }
 
   const json = await response.json();
+  if (!response.ok || response.status === 402) {
+    if (json && typeof json === "object" && !json.errorCode) {
+      json.errorCode = response.status === 402 ? "payment_required" : "internal_error";
+    }
+  }
 
   const evidence = json?.payment?.evidence as
     | {
@@ -130,7 +135,7 @@ export async function runPaidQuery(input: {
     status: response.status,
     ok: response.ok,
     paymentResponse: response.headers.get("payment-response"),
-    body: json,
-    proofLinks
+    isDemoMode,
+    body: json
   };
 }

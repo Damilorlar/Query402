@@ -349,6 +349,7 @@ export async function persistPaymentEvidence(
     facilitatorResult:
       "facilitatorResult" in evidence ? toJsonRecord(evidence.facilitatorResult) : undefined,
     error: evidence.kind === "failed" ? evidence.error : undefined,
+    errorCode: evidence.kind === "failed" ? "payment_invalid" : undefined,
     createdAt: now
   };
 
