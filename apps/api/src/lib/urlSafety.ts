@@ -29,7 +29,7 @@ const BLOCKED_PREFIXES = [
   "fe80:"
 ];
 
-const BLOCKED_CLOUD_META = ["169.254.169.254", "fd00:ec2::254", "[fd00:ec2::254]"];
+const BLOCKED_CLOUD_META = ["169.254.169.254", "[fd00:ec2::254]"];
 
 const MAX_REDIRECTS = 5;
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -60,17 +60,17 @@ export function validateUrl(raw: string): UrlPolicyResult {
       return { safe: false, sanitizedUrl: "", error: "Credentials in URLs are not allowed" };
     }
 
-    let hostname = url.hostname.toLowerCase();
-    if (hostname.startsWith("[") && hostname.endsWith("]")) {
-      hostname = hostname.slice(1, -1);
-    }
+    const hostname = url.hostname.toLowerCase();
+    // IPv6 hostnames include brackets (e.g. "[fe80::1]"); strip them so prefix
+    // checks match the address portion.
+    const normalizedHostname = hostname.startsWith("[") ? hostname.slice(1, -1) : hostname;
 
     if (BLOCKED_HOSTS.has(hostname) || BLOCKED_CLOUD_META.includes(hostname)) {
       return { safe: false, sanitizedUrl: "", error: "URL targets a blocked host" };
     }
 
     for (const prefix of BLOCKED_PREFIXES) {
-      if (hostname.startsWith(prefix)) {
+      if (normalizedHostname.startsWith(prefix)) {
         return { safe: false, sanitizedUrl: "", error: "URL targets a private/restricted network" };
       }
     }

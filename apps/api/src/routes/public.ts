@@ -99,3 +99,31 @@ publicRouter.get("/api/analytics", async (req, res, next) => {
     next(error);
   }
 });
+
+/**
+ * Public analytics endpoint - privacy-safe aggregation and paginated records
+ * No raw query text, URLs, or full payer addresses
+ * GET /api/v1/analytics?cursor=<cursor>&limit=<limit>
+ */
+publicRouter.get("/api/v1/analytics", (_req, res) => {
+  try {
+    const cursor = typeof _req.query.cursor === "string" ? _req.query.cursor : undefined;
+    const limit = typeof _req.query.limit === "string" ? parseInt(_req.query.limit, 10) : undefined;
+
+    // Validate limit
+    if (limit !== undefined && (isNaN(limit) || limit < 1 || limit > 100)) {
+      return res.status(400).json({
+        error: "Invalid limit parameter",
+        message: "limit must be a number between 1 and 100"
+      });
+    }
+
+    const analytics = getPublicAnalyticsData(cursor, limit);
+    res.json(analytics);
+  } catch (error: any) {
+    res.status(400).json({
+      error: "Invalid analytics request",
+      message: error?.message ?? "Unknown error"
+    });
+  }
+});

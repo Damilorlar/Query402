@@ -1,20 +1,13 @@
-import { nanoid } from "nanoid";
+import fs from "node:fs";
+import path from "node:path";
 import type {
   AnalyticsSummary,
   PaymentAttempt,
-  ProviderExecutionMetadata,
-  PaymentSource,
-  QueryMode,
-  UsageEvent
+  UsageEvent,
+  PrivacySafeAnalyticsResponse,
+  DetailedAnalyticsResponse
 } from "@query402/shared";
-import { config } from "./config.js";
-import { getStorageRepository } from "./storage/index.js";
-import { getProviderById } from "./pricing.js";
-import type {
-  AnalyticsQueryOptions,
-  PaginationOptions,
-  PaymentUsagePair
-} from "./storage/types.js";
+import { getPublicAnalytics, getDetailedAnalytics, getAnalyticsConfig } from "./analytics-service.js";
 
 export interface PersistPaidRequestInput {
   mode: QueryMode;
@@ -51,7 +44,7 @@ function buildPaymentAttempt(
     amountUsd: input.priceUsd,
     network: config.STELLAR_NETWORK,
     payerPublicKey: input.payerPublicKey,
-    payToAddress: config.X402_PAY_TO_ADDRESS,
+    payToAddress: requirePayToAddress(),
     facilitatorUrl: config.X402_FACILITATOR_URL,
     status: "settled",
     transactionHash: input.paymentResponseHeader ?? undefined,
@@ -132,63 +125,8 @@ export async function getAnalyticsSummary(
   return getStorageRepository().getAnalyticsSummary(options);
 }
 
-export interface AnalyticsExport {
-  exportedAt: string;
-  totalQueries: number;
-  totalSpendUsd: number;
-  spendByMode: Record<QueryMode, number>;
-  spendByProvider: Record<string, number>;
-  queryCountByStatus: {
-    demo: number;
-    paid: number;
-    failed: number;
-  };
-  paymentEvidenceCount: number;
-}
-
-export async function getAnalyticsExport(): Promise<AnalyticsExport> {
-  const usage = await getUsageEvents();
-  const payments = await getPaymentAttempts();
-
-  const exportedAt = new Date().toISOString();
-  const totalQueries = usage.length;
-
-  const spendByMode: Record<QueryMode, number> = { search: 0, news: 0, scrape: 0 };
-  const spendByProvider: Record<string, number> = {};
-  const queryCountByStatus = { demo: 0, paid: 0, failed: 0 };
-
-  for (const event of usage) {
-    spendByMode[event.mode] += event.priceUsd;
-    spendByProvider[event.providerId] = (spendByProvider[event.providerId] ?? 0) + event.priceUsd;
-
-    if (event.paymentStatus === "demo-paid") {
-      queryCountByStatus.demo++;
-    } else if (event.paymentStatus === "failed") {
-      queryCountByStatus.failed++;
-    } else {
-      queryCountByStatus.paid++;
-    }
-  }
-
-  const totalSpendUsd = Number(
-    Object.values(spendByMode)
-      .reduce((sum, v) => sum + v, 0)
-      .toFixed(6)
-  );
-
-  const paymentEvidenceCount = payments.filter(
-    (p) => p.transactionHash || p.facilitatorResult || p.evidenceKind
-  ).length;
-
-  return {
-    exportedAt,
-    totalQueries,
-    totalSpendUsd,
-    spendByMode,
-    spendByProvider,
-    queryCountByStatus,
-    paymentEvidenceCount
-  };
+export async function getSettlementDigest(): Promise<SettlementDigest> {
+  return getStorageRepository().getSettlementDigest();
 }
 
 export async function persistPaidRequest(input: PersistPaidRequestInput): Promise<void> {
@@ -220,4 +158,27 @@ export async function persistSponsoredPayment(input: PersistSponsoredPaymentInpu
   );
 
   await persistPaymentAndUsage({ payment, usage });
+}
+
+/**
+ * Get public analytics - privacy-safe, paginated, no sensitive data
+ */
+export function getPublicAnalyticsData(
+  cursor?: string,
+  limit?: number
+): PrivacySafeAnalyticsResponse {
+  const db = readDb();
+  return getPublicAnalytics(db.usage, db.payments, { cursor, limit });
+}
+
+/**
+ * Get detailed analytics - for authorized endpoints only
+ * Still redacts sensitive fields but includes more data
+ */
+export function getDetailedAnalyticsData(
+  cursor?: string,
+  limit?: number
+): DetailedAnalyticsResponse {
+  const db = readDb();
+  return getDetailedAnalytics(db.usage, db.payments, { cursor, limit });
 }
