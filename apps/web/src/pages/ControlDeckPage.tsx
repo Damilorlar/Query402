@@ -3,9 +3,12 @@ import type { ProviderDefinition, QueryMode, SponsorshipPreview } from "@query40
 import {
   Activity,
   AlertTriangle,
+  Check,
   CheckCircle2,
   CircleDollarSign,
   Clock4,
+  Copy,
+  Download,
   Gauge,
   Home,
   Radar,
@@ -26,6 +29,13 @@ import {
   runSponsoredPaidQuery
 } from "../lib/sponsorship.js";
 import { runWalletPaidQuery } from "../lib/x402.js";
+import {
+  buildReceipt,
+  copyReceiptToClipboard,
+  downloadReceipt,
+  type ReceiptPaymentMode,
+  receiptFilename
+} from "../lib/receipt.js";
 import { WalletSessionMachine, FreighterAdapter, type WalletState } from "../lib/wallet/index.js";
 import PaymentEvidenceBanner from "../components/PaymentEvidenceBanner.js";
 
@@ -69,7 +79,7 @@ export default function ControlDeckPage() {
   const [selectedProvider, setSelectedProvider] = useState<string>(modeDefaultProvider.search);
   const [result, setResult] = useState<PaidQueryResponse | null>(null);
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
-  const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(true);
+  const [privacySafeAnalytics, setPrivacySafeAnalytics] = useState<PrivacySafeAnalyticsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sponsorshipEnabled, setSponsorshipEnabled] = useState(false);
@@ -178,17 +188,81 @@ export default function ControlDeckPage() {
   }
 
   async function refreshMetrics() {
-    setIsAnalyticsLoading(true);
+    const data = await fetchJson<AnalyticsResponse>(`${API_BASE_URL}/api/analytics`);
+    setAnalytics(data);
+
+    // Fetch privacy-safe analytics
     try {
-      const data = await fetchJson<AnalyticsResponse>(`${API_BASE_URL}/api/analytics`);
-      setAnalytics(data);
-    } finally {
-      setIsAnalyticsLoading(false);
+      const privacySafeData = await fetchJson<PrivacySafeAnalyticsResponse>(`${API_BASE_URL}/api/v1/analytics?limit=5`);
+      setPrivacySafeAnalytics(privacySafeData);
+    } catch (analyticsError) {
+      // Silently fail to fetch privacy-safe analytics if endpoint not available
+      console.warn("Could not fetch privacy-safe analytics", analyticsError);
     }
   }
 
   const showAnalyticsSkeleton = isAnalyticsLoading && analytics === null;
   const hasUsageHistory = (analytics?.totalQueries ?? 0) > 0;
+
+  type ReceiptFeedback = { kind: "copied" | "downloaded"; at: number } | null;
+  const [receiptFeedback, setReceiptFeedback] = useState<ReceiptFeedback>(null);
+
+  const receipt = useMemo(() => {
+    if (!result) {
+      return null;
+    }
+    return buildReceipt({ response: result, userPaymentMode: paymentMode });
+  }, [result, paymentMode]);
+
+  useEffect(() => {
+    if (!receiptFeedback) {
+      return;
+    }
+    const timer = window.setTimeout(() => setReceiptFeedback(null), 2400);
+    return () => window.clearTimeout(timer);
+  }, [receiptFeedback]);
+
+  function exportReceipt() {
+    if (!receipt) {
+      setError("Run a paid query before exporting a receipt");
+      return;
+    }
+    try {
+      downloadReceipt(receipt);
+      setReceiptFeedback({ kind: "downloaded", at: Date.now() });
+    } catch (exportError) {
+      setError(
+        exportError instanceof Error ? exportError.message : "Failed to export receipt"
+      );
+    }
+  }
+
+  async function copyReceipt() {
+    if (!receipt) {
+      setError("Run a paid query before copying a receipt");
+      return;
+    }
+    try {
+      const copyResult = await copyReceiptToClipboard(receipt);
+      if (!copyResult.ok) {
+        setError("Could not copy receipt to clipboard");
+        return;
+      }
+      setReceiptFeedback({ kind: "copied", at: Date.now() });
+    } catch (copyError) {
+      setError(copyError instanceof Error ? copyError.message : "Failed to copy receipt");
+    }
+  }
+
+  const receiptBadgeLabel: Record<ReceiptPaymentMode, string> = {
+    wallet: "Wallet",
+    sponsored: "Sponsored",
+    demo: "Demo"
+  };
+
+  const receiptHintForCurrent = result
+    ? `Share this receipt in the SCF issue thread to prove the ${receipt?.payment.mode ?? "wallet"} payment trail.`
+    : null;
 
   useEffect(() => {
     async function bootstrap() {
@@ -505,6 +579,9 @@ export default function ControlDeckPage() {
                     <span className={`source-badge ${provider.sourceType}`}>
                       {provider.sourceType}
                     </span>
+                    <span className={`provenance-badge ${provider.provenance}`}>
+                      {provider.provenance}
+                    </span>
                   </div>
                   <div className="provider-sla-badges">
                     <span
@@ -635,55 +712,76 @@ export default function ControlDeckPage() {
                 </div>
 
                 <div className="trace-box">
-                  <p className="trace-row">
-                    <span className="trace-label">Trace ID</span>
-                    <code className="trace-value">{result.traceId}</code>
+                  <p>
+                    payment-evidence: {result.payment.evidence.kind} ({result.payment.evidence.status})
+                  </p>
+                  <p>network: {result.payment.evidence.network}</p>
+                  <p>asset: {result.payment.evidence.asset ?? "<unspecified>"}</p>
+                </div>
+
+                <div className="receipt-card">
+                  <div className="receipt-card-head">
+                    <p className="receipt-eyebrow">Public receipt</p>
+                    <div className="receipt-badges">
+                      {receipt ? (
+                        <span className={`receipt-mode-badge receipt-mode-${receipt.payment.mode}`}>
+                          {receiptBadgeLabel[receipt.payment.mode]}
+                        </span>
+                      ) : null}
+                      {receipt?.payment.transactionHash ? (
+                        <span
+                          className="receipt-tx-pill"
+                          title={receipt.payment.transactionHash}
+                        >
+                          tx {receipt.payment.transactionHash.slice(0, 8)}…
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <p className="receipt-summary">
+                    Trace <strong>{result.result.traceId}</strong> · quoted{" "}
+                    <strong>{money(result.result.priceUsd)}</strong> · payment proof for{" "}
+                    <strong>{result.result.providerName}</strong>
+                  </p>
+
+                  <p className="receipt-hint">{receiptHintForCurrent ?? ""}</p>
+
+                  <div className="receipt-actions">
                     <button
                       type="button"
-                      className="trace-copy-btn"
-                      onClick={() => navigator.clipboard.writeText(result.traceId)}
-                      title="Copy trace ID"
+                      className="ghost-btn receipt-btn"
+                      onClick={exportReceipt}
+                      disabled={!receipt}
+                      title={
+                        receipt
+                          ? `Download ${receiptFilename(receipt)}`
+                          : "Run a paid query first"
+                      }
                     >
-                      Copy
+                      <Download size={14} /> Export JSON receipt
                     </button>
-                  </p>
-                  <p>
-                    evidence:{" "}
-                    {result.payment.evidence?.status ?? result.payment.evidence?.kind ?? "none"}
-                  </p>
-                  <p>network: {result.payment.network}</p>
-                  {result.payment.evidence?.proofLinks && (
-                    <div className="proof-links">
-                      <p>
-                        tx:{" "}
-                        {result.payment.evidence.proofLinks.transaction !== "not_available" ? (
-                          <a
-                            href={result.payment.evidence.proofLinks.transaction}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            {result.payment.evidence.transactionHash?.slice(0, 12)}...
-                          </a>
-                        ) : (
-                          "not_available"
-                        )}
-                      </p>
-                      <p>
-                        payer:{" "}
-                        {result.payment.evidence.proofLinks.payer !== "not_available" ? (
-                          <a
-                            href={result.payment.evidence.proofLinks.payer}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            {result.payment.evidence.payer?.slice(0, 8)}...
-                          </a>
-                        ) : (
-                          "not_available"
-                        )}
-                      </p>
-                    </div>
-                  )}
+                    <button
+                      type="button"
+                      className="ghost-btn receipt-btn"
+                      onClick={copyReceipt}
+                      disabled={!receipt}
+                      title="Copy a paste-ready JSON receipt to your clipboard"
+                    >
+                      {receiptFeedback?.kind === "copied" ? (
+                        <>
+                          <Check size={14} /> Copied
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={14} /> Copy JSON
+                        </>
+                      )}
+                    </button>
+                    {receiptFeedback?.kind === "downloaded" ? (
+                      <span className="receipt-toast">Receipt downloaded ✓</span>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div className="item-stack">
@@ -706,70 +804,122 @@ export default function ControlDeckPage() {
           <div className="orbital">
             <div className="orbital-center">
               <Gauge size={20} />
-              {showAnalyticsSkeleton ? (
-                <>
-                  <span className="analytics-skeleton analytics-skeleton--orbital" />
-                  <span className="analytics-skeleton analytics-skeleton--caption" />
-                </>
-              ) : (
-                <>
-                  <p>{money(analytics?.totalSpendUsd ?? 0)}</p>
-                  <span>Total spend</span>
-                </>
-              )}
+              <p>{money(analytics?.totalSpendUsd ?? 0)}</p>
+              <span>Total spend (legacy)</span>
             </div>
           </div>
 
-          <div className="analytics-panel">
-            <h3>Spend by category</h3>
-            {showAnalyticsSkeleton ? (
-              <AnalyticsSkeletonRows count={3} />
-            ) : !hasUsageHistory ? (
-              <p className="panel-empty-note">
-                No spend recorded yet. Run a paid query to see category breakdown.
-              </p>
-            ) : (
-              <ul>
-                <li>
-                  <span>Search</span>
-                  <strong>{money(analytics!.spendByCategory.search)}</strong>
-                </li>
-                <li>
-                  <span>News</span>
-                  <strong>{money(analytics!.spendByCategory.news)}</strong>
-                </li>
-                <li>
-                  <span>Scrape</span>
-                  <strong>{money(analytics!.spendByCategory.scrape)}</strong>
-                </li>
-              </ul>
-            )}
-          </div>
+          {/* Privacy-safe Analytics Section */}
+          {privacySafeAnalytics && (
+            <div className="analytics-panel privacy-safe">
+              <h3>
+                <TrendingUp size={16} /> On-Chain Analytics (Privacy-Safe)
+              </h3>
+              
+              {/* Settled Volume */}
+              <div className="settlement-group">
+                <div className="settlement-header">
+                  <span className="badge settled">SETTLED</span>
+                  <span className="settlement-label">On-Chain Confirmed</span>
+                </div>
+                <ul>
+                  <li>
+                    <span>Volume</span>
+                    <strong>${privacySafeAnalytics.aggregation.settled.totalVolumeUsd.toFixed(6)}</strong>
+                  </li>
+                  <li>
+                    <span>Queries</span>
+                    <strong>{privacySafeAnalytics.aggregation.settled.totalCount}</strong>
+                  </li>
+                  <li className="category-item">
+                    <span>Search</span>
+                    <strong>${privacySafeAnalytics.aggregation.settled.byCategory.search.volumeUsd.toFixed(6)}</strong>
+                  </li>
+                  <li className="category-item">
+                    <span>News</span>
+                    <strong>${privacySafeAnalytics.aggregation.settled.byCategory.news.volumeUsd.toFixed(6)}</strong>
+                  </li>
+                  <li className="category-item">
+                    <span>Scrape</span>
+                    <strong>${privacySafeAnalytics.aggregation.settled.byCategory.scrape.volumeUsd.toFixed(6)}</strong>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Verified Volume */}
+              {privacySafeAnalytics.aggregation.verified.totalCount > 0 && (
+                <div className="settlement-group">
+                  <div className="settlement-header">
+                    <span className="badge verified">VERIFIED</span>
+                    <span className="settlement-label">Verified Payments</span>
+                  </div>
+                  <ul>
+                    <li>
+                      <span>Volume</span>
+                      <strong>${privacySafeAnalytics.aggregation.verified.totalVolumeUsd.toFixed(6)}</strong>
+                    </li>
+                    <li>
+                      <span>Queries</span>
+                      <strong>{privacySafeAnalytics.aggregation.verified.totalCount}</strong>
+                    </li>
+                  </ul>
+                </div>
+              )}
+
+              {/* Demo-Paid Volume */}
+              {privacySafeAnalytics.aggregation.demoPaid.totalCount > 0 && (
+                <div className="settlement-group demo">
+                  <div className="settlement-header">
+                    <span className="badge demo">DEMO</span>
+                    <span className="settlement-label">Demo Queries (No Payment)</span>
+                  </div>
+                  <ul>
+                    <li>
+                      <span>Queries</span>
+                      <strong>{privacySafeAnalytics.aggregation.demoPaid.totalCount}</strong>
+                    </li>
+                  </ul>
+                </div>
+              )}
+
+              {/* Failed Volume */}
+              {privacySafeAnalytics.aggregation.failed.totalCount > 0 && (
+                <div className="settlement-group failed">
+                  <div className="settlement-header">
+                    <span className="badge failed">
+                      <AlertCircle size={12} /> FAILED
+                    </span>
+                    <span className="settlement-label">Failed Attempts</span>
+                  </div>
+                  <ul>
+                    <li>
+                      <span>Attempts</span>
+                      <strong>{privacySafeAnalytics.aggregation.failed.totalCount}</strong>
+                    </li>
+                  </ul>
+                </div>
+              )}
+
+              <p className="privacy-notice">✓ Query text and URLs redacted. Payer addresses hashed. Raw payments never exposed.</p>
+            </div>
+          )}
 
           <div className="analytics-panel">
-            <h3>Execution reliability</h3>
-            {showAnalyticsSkeleton ? (
-              <AnalyticsSkeletonRows count={3} />
-            ) : !hasUsageHistory ? (
-              <p className="panel-empty-note">
-                No execution telemetry yet. Run a query to see live and fallback counts.
-              </p>
-            ) : (
-              <ul>
-                <li>
-                  <span>Live</span>
-                  <strong>{analytics!.executionSummary.liveExecutions}</strong>
-                </li>
-                <li>
-                  <span>Fallback</span>
-                  <strong>{analytics!.executionSummary.fallbackExecutions}</strong>
-                </li>
-                <li>
-                  <span>Timeouts</span>
-                  <strong>{analytics!.executionSummary.timeoutExecutions}</strong>
-                </li>
-              </ul>
-            )}
+            <h3>Spend by category (legacy)</h3>
+            <ul>
+              <li>
+                <span>Search</span>
+                <strong>{money(analytics?.spendByCategory.search ?? 0)}</strong>
+              </li>
+              <li>
+                <span>News</span>
+                <strong>{money(analytics?.spendByCategory.news ?? 0)}</strong>
+              </li>
+              <li>
+                <span>Scrape</span>
+                <strong>{money(analytics?.spendByCategory.scrape ?? 0)}</strong>
+              </li>
+            </ul>
           </div>
 
           <div className="analytics-panel">
@@ -821,73 +971,33 @@ export default function ControlDeckPage() {
           </div>
 
           <div className="feed-panel">
-            <h3>Real settled payments (on-chain)</h3>
-            {showAnalyticsSkeleton ? (
-              <AnalyticsSkeletonRows count={3} />
-            ) : (analytics?.recentSettledPayments ?? []).length === 0 ? (
-              <p className="panel-empty-note">
-                No on-chain settlements yet. Wallet-paid transactions appear here.
-              </p>
-            ) : (
-              analytics!.recentSettledPayments.slice(0, 5).map((tx) => (
-                <div key={tx.id} className="feed-row">
-                  <p>
-                    <span>{tx.providerId}</span>
-                    <strong>{money(tx.amountUsd)}</strong>
-                    <span className="source-badge settled">settled</span>
-                  </p>
-                  <small>{new Date(tx.createdAt).toLocaleString()}</small>
-                  {tx.transactionHash && (
-                    <small className="proof-link">
-                      <a
-                        href={`https://stellar.expert/explorer/testnet/tx/${tx.transactionHash}`}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        tx: {tx.transactionHash.slice(0, 8)}...
-                      </a>
-                    </small>
-                  )}
-                </div>
-              ))
-            )}
+            <h3>Recent transactions (legacy)</h3>
+            {(analytics?.recentTransactions ?? []).slice(0, 5).map((tx) => (
+              <div key={tx.id} className="feed-row">
+                <p>
+                  <span>{tx.providerId}</span>
+                  <strong>{money(tx.amountUsd)}</strong>
+                </p>
+                <small>{new Date(tx.createdAt).toLocaleString()}</small>
+              </div>
+            ))}
           </div>
 
           <div className="feed-panel">
-            <h3>Execution feed</h3>
-            {showAnalyticsSkeleton ? (
-              <AnalyticsSkeletonRows count={3} />
-            ) : (analytics?.recentUsage ?? []).length === 0 ? (
-              <p className="panel-empty-note">
-                No executions yet. Query runs and latency traces will appear here.
-              </p>
-            ) : (
-              analytics!.recentUsage.slice(0, 5).map((usage) => (
-                <div key={usage.id} className="feed-row">
-                  <p>
-                    <span>
-                      {usage.mode.toUpperCase()} · {usage.providerId}
-                    </span>
-                    <strong>{usage.latencyMs}ms</strong>
-                  </p>
-                  <small>
-                    {money(usage.priceUsd)} · {new Date(usage.createdAt).toLocaleString()}
-                    {usage.execution
-                      ? ` · ${usage.execution.source}${
-                          usage.execution.fallbackReason
-                            ? ` (${usage.execution.fallbackReason})`
-                            : ""
-                        }`
-                      : ""}
-                    {usage.priceOutlier ? (
-                      <span className="price-outlier-warning" title={usage.priceOutlierReason}>
-                        <AlertTriangle size={12} /> Price outlier
-                      </span>
-                    ) : null}
-                  </small>
-                </div>
-              ))
-            )}
+            <h3>Execution feed (legacy)</h3>
+            {(analytics?.recentUsage ?? []).slice(0, 5).map((usage) => (
+              <div key={usage.id} className="feed-row">
+                <p>
+                  <span>
+                    {usage.mode.toUpperCase()} · {usage.providerId}
+                  </span>
+                  <strong>{usage.latencyMs}ms</strong>
+                </p>
+                <small>
+                  {money(usage.priceUsd)} · {new Date(usage.createdAt).toLocaleString()}
+                </small>
+              </div>
+            ))}
           </div>
 
           <div className="script-panel">

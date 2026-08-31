@@ -1,20 +1,13 @@
-import { nanoid } from "nanoid";
+import fs from "node:fs";
+import path from "node:path";
 import type {
   AnalyticsSummary,
   PaymentAttempt,
-  ProviderExecutionMetadata,
-  PaymentSource,
-  QueryMode,
-  UsageEvent
+  UsageEvent,
+  PrivacySafeAnalyticsResponse,
+  DetailedAnalyticsResponse
 } from "@query402/shared";
-import { config } from "./config.js";
-import { getStorageRepository } from "./storage/index.js";
-import { getProviderById } from "./pricing.js";
-import type {
-  AnalyticsQueryOptions,
-  PaginationOptions,
-  PaymentUsagePair
-} from "./storage/types.js";
+import { getPublicAnalytics, getDetailedAnalytics, getAnalyticsConfig } from "./analytics-service.js";
 
 export interface PersistPaidRequestInput {
   mode: QueryMode;
@@ -27,6 +20,7 @@ export interface PersistPaidRequestInput {
   paymentResponseHeader: string | null;
   execution: ProviderExecutionMetadata;
   payerPublicKey?: string;
+  errorCode?: string;
 }
 
 export interface PersistSponsoredPaymentInput extends PersistPaidRequestInput {
@@ -54,6 +48,7 @@ function buildPaymentAttempt(
     facilitatorUrl: config.X402_FACILITATOR_URL,
     status: "settled",
     transactionHash: input.paymentResponseHeader ?? undefined,
+    errorCode: input.errorCode as any,
     createdAt: now,
     ...overrides
   };
@@ -95,6 +90,7 @@ function buildUsageEvent(
     facilitatorUrl: config.X402_FACILITATOR_URL,
     payerPublicKey: input.payerPublicKey,
     traceId: input.traceId,
+    paymentId,
     createdAt: now,
     latencyMs: input.latencyMs,
     execution: input.execution,
@@ -158,4 +154,27 @@ export async function persistSponsoredPayment(input: PersistSponsoredPaymentInpu
   );
 
   await persistPaymentAndUsage({ payment, usage });
+}
+
+/**
+ * Get public analytics - privacy-safe, paginated, no sensitive data
+ */
+export function getPublicAnalyticsData(
+  cursor?: string,
+  limit?: number
+): PrivacySafeAnalyticsResponse {
+  const db = readDb();
+  return getPublicAnalytics(db.usage, db.payments, { cursor, limit });
+}
+
+/**
+ * Get detailed analytics - for authorized endpoints only
+ * Still redacts sensitive fields but includes more data
+ */
+export function getDetailedAnalyticsData(
+  cursor?: string,
+  limit?: number
+): DetailedAnalyticsResponse {
+  const db = readDb();
+  return getDetailedAnalytics(db.usage, db.payments, { cursor, limit });
 }

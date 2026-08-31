@@ -127,8 +127,8 @@ export const providers: ProviderDefinition[] = [
     latencyEstimateMs: 1500,
     qualityScore: 99,
     sourceType: "live",
-    enabled: true,
-    slaBadge: computeSlaBadge(1500, "live")
+    provenance: "live",
+    enabled: true
   },
   {
     id: "search.basic",
@@ -139,8 +139,8 @@ export const providers: ProviderDefinition[] = [
     latencyEstimateMs: 700,
     qualityScore: 75,
     sourceType: "deterministic-fallback",
-    enabled: true,
-    slaBadge: computeSlaBadge(700, "deterministic-fallback")
+    provenance: "mock",
+    enabled: true
   },
   {
     id: "search.pro",
@@ -151,8 +151,8 @@ export const providers: ProviderDefinition[] = [
     latencyEstimateMs: 1100,
     qualityScore: 90,
     sourceType: "deterministic-fallback",
-    enabled: true,
-    slaBadge: computeSlaBadge(1100, "deterministic-fallback")
+    provenance: "mock",
+    enabled: true
   },
   {
     id: "news.fast",
@@ -163,8 +163,8 @@ export const providers: ProviderDefinition[] = [
     latencyEstimateMs: 800,
     qualityScore: 72,
     sourceType: "deterministic-fallback",
-    enabled: true,
-    slaBadge: computeSlaBadge(800, "deterministic-fallback")
+    provenance: "mock",
+    enabled: true
   },
   {
     id: "news.deep",
@@ -175,8 +175,8 @@ export const providers: ProviderDefinition[] = [
     latencyEstimateMs: 1400,
     qualityScore: 93,
     sourceType: "deterministic-fallback",
-    enabled: true,
-    slaBadge: computeSlaBadge(1400, "deterministic-fallback")
+    provenance: "mock",
+    enabled: true
   },
   {
     id: "scrape.page",
@@ -187,8 +187,8 @@ export const providers: ProviderDefinition[] = [
     latencyEstimateMs: 1000,
     qualityScore: 70,
     sourceType: "deterministic-fallback",
-    enabled: true,
-    slaBadge: computeSlaBadge(1000, "deterministic-fallback")
+    provenance: "mock",
+    enabled: true
   },
   {
     id: "scrape.extract",
@@ -199,8 +199,8 @@ export const providers: ProviderDefinition[] = [
     latencyEstimateMs: 1700,
     qualityScore: 95,
     sourceType: "deterministic-fallback",
-    enabled: true,
-    slaBadge: computeSlaBadge(1700, "deterministic-fallback")
+    provenance: "mock",
+    enabled: true
   }
 ];
 

@@ -161,8 +161,9 @@ async function main() {
   });
 
   if (!result.ok) {
+    const errorCode = (result.body as any)?.errorCode ? ` [${(result.body as any).errorCode}]` : "";
     throw new Error(
-      `Paid request failed with status ${result.status}. Response: ${JSON.stringify(result.body)}`
+      `Paid request failed with status ${result.status}${errorCode}. Response: ${JSON.stringify(result.body)}`
     );
   }
 
@@ -176,6 +177,15 @@ async function main() {
   console.log(`Trace ID: ${(result.body as any)?.result?.traceId ?? "n/a"}`);
   console.log(`Provider: ${(result.body as any)?.result?.providerId ?? "n/a"}`);
   console.log(`Price: ${(result.body as any)?.result?.priceUsd ?? "n/a"}`);
+
+  if (result.proofLinks) {
+    console.log("\n--- Payment Proof Links ---");
+    console.log(`Transaction: ${result.proofLinks.transaction}`);
+    console.log(`Payer:       ${result.proofLinks.payer}`);
+    console.log(`Pay-to:      ${result.proofLinks.payTo}`);
+    console.log(`Network:     ${result.proofLinks.network}`);
+    console.log(`Asset:       ${result.proofLinks.asset}`);
+  }
 
   if (!paymentHeader) {
     throw new Error("No payment proof header found. Check facilitator/wallet settlement path.");
