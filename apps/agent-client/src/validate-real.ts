@@ -178,6 +178,15 @@ async function main() {
   console.log(`Provider: ${(result.body as any)?.result?.providerId ?? "n/a"}`);
   console.log(`Price: ${(result.body as any)?.result?.priceUsd ?? "n/a"}`);
 
+  if (result.proofLinks) {
+    console.log("\n--- Payment Proof Links ---");
+    console.log(`Transaction: ${result.proofLinks.transaction}`);
+    console.log(`Payer:       ${result.proofLinks.payer}`);
+    console.log(`Pay-to:      ${result.proofLinks.payTo}`);
+    console.log(`Network:     ${result.proofLinks.network}`);
+    console.log(`Asset:       ${result.proofLinks.asset}`);
+  }
+
   if (!paymentHeader) {
     throw new Error("No payment proof header found. Check facilitator/wallet settlement path.");
   }

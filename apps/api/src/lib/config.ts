@@ -34,7 +34,7 @@ const envSchema = z.object({
   STELLAR_RPC_URL: z.string().url().default("https://soroban-testnet.stellar.org"),
   X402_FACILITATOR_URL: z.string().url().default("https://channels.openzeppelin.com/x402/testnet"),
   X402_FACILITATOR_API_KEY: z.string().optional(),
-  X402_PAY_TO_ADDRESS: z.string().min(10, "X402_PAY_TO_ADDRESS is required"),
+  X402_PAY_TO_ADDRESS: z.string().min(10, "X402_PAY_TO_ADDRESS is required").optional(),
   API_BASE_URL: z.string().url().default("http://localhost:3001"),
   CORS_ORIGINS: z.string().optional(),
   DEMO_CLIENT_SECRET_KEY: z.string().optional(),
